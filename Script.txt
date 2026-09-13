@@ -76,16 +76,44 @@ end
 -- Fluent UI integration
 -- UI size: edit these two lines to resize the main window and the floating minimize icon.
 local UI_WIDTH = 680
-local UI_HEIGHT = 680
+local UI_HEIGHT = 390
 local UI_ICON_SIZE = 56
 
-local Fluent = loadstring(game:HttpGet("https://github.com/StyearX/Fluent-Modded/releases/download/1.6.0/main.lua"))()
+-- Safe loader: bọc HttpGet + loadstring + pcall để báo lỗi rõ ràng,
+-- tránh crash "attempt to call a nil value" khi URL chết.
+local function safeLoad(url, name)
+    local ok, src = pcall(game.HttpGet, game, url)
+    if not ok then
+        warn("[TCOE] HTTP GET thất bại cho " .. name .. ": " .. tostring(src))
+        return nil
+    end
+    if not src or src == "" then
+        warn("[TCOE] Nội dung tải về rỗng cho " .. name .. " (" .. url .. ")")
+        return nil
+    end
+    local fn, lerr = loadstring(src)
+    if type(fn) ~= "function" then
+        warn("[TCOE] loadstring thất bại cho " .. name .. ": " .. tostring(lerr))
+        return nil
+    end
+    local ok2, res = pcall(fn)
+    if not ok2 then
+        warn("[TCOE] Chạy " .. name .. " thất bại: " .. tostring(res))
+        return nil
+    end
+    return res
+end
+
+local Fluent = safeLoad("https://github.com/StyearX/Fluent-Modded/releases/download/1.6.0/main.lua", "Fluent-Modded")
+if not Fluent then
+    error("[TCOE] Không load được Fluent-Modded, script dừng để tránh lỗi dây chuyền.")
+end
 local InterfaceManager = Fluent.InterfaceManager
 local SaveManager = Fluent.SaveManager
 local FloatingButtonManager = Fluent.FloatingButtonManager
 
 local Window = Fluent:CreateWindow({
-    Title = "The Chosen One EXTRAS (BY 2AREYOUMENTAL110)",
+    Title = " Better TCO EXTRAS (BY HOLLIS)",
     TabWidth = 140,
     SubTitle = "Better Extra",
     Acrylic = false, -- TEST: disable Acrylic to check Display Whole Build freezing
@@ -99,9 +127,24 @@ local Window = Fluent:CreateWindow({
         UserInfoTitle = localplr.Name,
         UserInfoSubtitle = localplr.DisplayName,
     },
-    FolderName = "TheChosenOneExtras",
-    ScreenGuiName = "TheChosenOneExtras",
+    FolderName = "BetterTCOExtras",
+    ScreenGuiName = "BetterTCOExtras",
 })
+
+-- Debug: in ra cấu trúc Window.Root để biết frame nào cần resize
+task.defer(function()
+    task.wait(1)
+    if Window and Window.Root then
+        print("[TCOE Debug] Window.Root class:", Window.Root.ClassName)
+        print("[TCOE Debug] Window.Root name:", Window.Root.Name)
+        print("[TCOE Debug] Children count:", #Window.Root:GetChildren())
+        for _, c in ipairs(Window.Root:GetChildren()) do
+            if c:IsA("GuiObject") then
+                print("   -", c.ClassName, c.Name, c.Size)
+            end
+        end
+    end
+end)
 
 local Minimizer = Fluent:CreateMinimizer({
     Icon = "rbxassetid://109639117875913",
@@ -135,6 +178,21 @@ local tabSections = setmetatable({}, {__mode = "k"})
 local currentInstance
 local uiSizeOverrideConnection
 
+-- ============================================================
+-- Forward declarations — các biến/hàm dưới đây được định nghĩa ở section
+-- Transform (sau), nhưng bị callback "Display/Delete build display" tham chiếu
+-- từ trước. Nếu không forward-declare, Lua resolve chúng thành global = nil và
+-- crash "attempt to call a nil value".
+local prttable
+local gizmoOffset = Vector3.new(0,0,0)
+local gizmoPivotCenter
+local previewBaseCFrames = {}
+local createAxisGizmo
+local destroyOffsetGizmo
+local updateTransformFields
+local getPreviewCenter
+-- ============================================================
+
 function lib.makelib(_)
     local gui = {}
     function gui:Destroy()
@@ -167,7 +225,7 @@ function lib.makelib(_)
     return gui
 end
 
-local libgui = lib.makelib("The Chosen One EXTRAS (BY 2AREYOUMENTAL110)")
+local libgui = lib.makelib(" Better TCO EXTRAS (BY HOLLIS)")
 
 -- Single-instance guard: running a new copy cleans up the previous copy first.
 -- This uses getgenv(), which is already used by Better Extra, so no extra
@@ -193,7 +251,7 @@ getgenv()[TCOE_INSTANCE_KEY] = currentInstance
 
 local function sectionFor(tab)
     if tabSections[tab] then return tabSections[tab] end
-    local sec = tab:AddSection("The Chosen One EXTRAS", "solar/widget-bold")
+    local sec = tab:AddSection("Beter TCO EXTRAS", "solar/widget-bold")
     tabSections[tab] = sec
     return sec
 end
@@ -204,10 +262,8 @@ function lib.maketab(name)
     if n == "build" then icon = "solar/hammer-bold"
     elseif n == "tools" then icon = "solar/hand-shake-bold"
     elseif n == "gears" then icon = "solar/settings-bold"
-    elseif n == "more scripts" then icon = "solar/code-bold"
     elseif n == "build save/load" then icon = "solar/diskette-bold"
     elseif n == "transform" then icon = "solar/transfer-horizontal-bold"
-    elseif n == "commands" then icon = "solar/command-bold"
     elseif n == "moderation & management" then icon = "solar/shield-bold" end
     return newFluentTab(name, icon, false)
 end
@@ -231,7 +287,13 @@ function lib.maketextbox(text, tab, callback)
         Title = tostring(text),
         Placeholder = tostring(text),
         Default = "",
-        Callback = callback,
+        Callback = function(value)
+            -- SaveManager load config sẽ fire callback với giá trị đã lưu.
+            -- Với input chưa nhập gì, giá trị là "" — bỏ qua để tránh
+            -- side effect (build block, đổi size, readfile...) xảy ra khi load.
+            if value == nil or value == "" then return end
+            callback(value)
+        end,
     })
     local proxy = {}
     setmetatable(proxy, {
@@ -262,7 +324,12 @@ function lib.makedropdown(text, tab, values, callback)
         Title = tostring(text),
         Values = values or {},
         AllowNull = true,
-        Callback = callback,
+        Callback = function(value)
+            -- Cùng lý do như maketextbox: load config fire nil cho dropdown
+            -- chưa chọn. Bỏ qua để tránh lỗi (Enum.NormalId[nil], readfile nil...).
+            if value == nil or value == "" then return end
+            callback(value)
+        end,
     })
 end
 
@@ -288,14 +355,12 @@ function lib.updatelabel(text, label)
     end)
 end
 
-local buildtab = lib.maketab("build")
-local tooltab = lib.maketab("tools")
-local geartab = lib.maketab("gears")
-local scripttab = lib.maketab("more scripts")
-local bsaltab = lib.maketab("build save/load")
+local buildtab = lib.maketab("Build")
+local bsaltab = lib.maketab("Build Save/Load")
 local transformtab = lib.maketab("Transform")
-local commandtab = lib.maketab("commands")
-local modtab = lib.maketab("moderation & management")
+local geartab = lib.maketab("Gears")
+local modtab = lib.maketab("Moderation & Management")
+local tooltab = lib.maketab("Tools")
 
 -- Fluent's Configuration tab is preserved from the original Fluent example.
 local configurationtab = newFluentTab("Configuration", "settings", false)
@@ -303,20 +368,20 @@ local visualtab = newFluentTab("Visual", "image", true)
 
 pcall(function()
     InterfaceManager:SetLibrary(Fluent)
-    InterfaceManager:SetFolder("TheChosenOneExtras")
+    InterfaceManager:SetFolder("BetterTCOExtras")
     InterfaceManager:BuildInterfaceSection(configurationtab)
     InterfaceManager:LoadSettings()
 end)
 pcall(function()
     SaveManager:SetLibrary(Fluent)
-    SaveManager:SetFolder("TheChosenOneExtras/Config")
+    SaveManager:SetFolder("BetterTCOExtras/Config")
     SaveManager:IgnoreThemeSettings()
     SaveManager:BuildConfigSection(configurationtab)
     SaveManager:LoadAutoloadConfig()
 end)
 pcall(function()
     FloatingButtonManager:SetLibrary(Fluent)
-    FloatingButtonManager:SetFolder("TheChosenOneExtras/Floating")
+    FloatingButtonManager:SetFolder("BetterTCOExtras/Floating")
     FloatingButtonManager:BuildConfigSection(configurationtab)
     FloatingButtonManager:LoadAutoloadConfig()
 end)
@@ -327,43 +392,96 @@ local UnloadSection = configurationtab:AddSection("Script", "solar/power-bold")
 local uiWidthValue = UI_WIDTH
 local uiHeightValue = UI_HEIGHT
 local uiIconSizeValue = UI_ICON_SIZE
+local uiSizeInputs = {}
+
+-- Tìm frame thật sự cần resize bên trong Window.Root.
+-- Fluent đôi khi để Root là ScreenGui (không có Size), nên phải tìm Frame con.
+local function resolveResizeTarget()
+    if not Window or not Window.Root then return nil end
+    local root = Window.Root
+    -- Nếu Root có Size và là GuiObject thì dùng luôn
+    if root:IsA("GuiObject") then
+        return root
+    end
+    -- Ngược lại tìm GuiObject con có diện tích lớn nhất
+    local best, bestArea = nil, 0
+    for _, c in ipairs(root:GetDescendants()) do
+        if c:IsA("GuiObject") and c.Size and c.Size.X.Offset > 0 then
+            local area = c.Size.X.Offset * c.Size.Y.Offset
+            if area > bestArea then
+                best, bestArea = c, area
+            end
+        end
+    end
+    return best
+end
+
+local function readSizeInput(id, fallback)
+    local inp = uiSizeInputs[id]
+    if not inp then return fallback end
+    -- Ưu tiên TextBox.Text nếu có (đọc realtime, không phụ thuộc Finished)
+    local raw = inp.Value
+    if inp.TextBox and inp.TextBox.Text and inp.TextBox.Text ~= "" then
+        raw = inp.TextBox.Text
+    end
+    return tonumber(raw) or fallback
+end
 
 local function applyUISizes()
-    uiWidthValue = math.clamp(math.floor(tonumber(uiWidthValue) or UI_WIDTH), 320, 1600)
-    uiHeightValue = math.clamp(math.floor(tonumber(uiHeightValue) or UI_HEIGHT), 280, 1200)
-    uiIconSizeValue = math.clamp(math.floor(tonumber(uiIconSizeValue) or UI_ICON_SIZE), 24, 160)
+    -- Đọc realtime từ TextBox, không phụ thuộc .Value
+    uiWidthValue    = math.clamp(math.floor(readSizeInput("TCOE_UIWidth",  uiWidthValue)),  320, 1600)
+    uiHeightValue   = math.clamp(math.floor(readSizeInput("TCOE_UIHeight", uiHeightValue)), 280, 1200)
+    uiIconSizeValue = math.clamp(math.floor(readSizeInput("TCOE_IconSize", uiIconSizeValue)), 24, 160)
 
-    -- Fluent internally drives Window.Root.Size with a motor. Setting Root.Size
-    -- once is therefore overwritten on the next render step. Keep a small
-    -- override connection so Apply UI Size remains effective every time it is pressed.
-    pcall(function()
-        if uiSizeOverrideConnection then
-            uiSizeOverrideConnection:Disconnect()
-            uiSizeOverrideConnection = nil
-        end
-        if Window and Window.Root then
-            local desired = UDim2.fromOffset(uiWidthValue, uiHeightValue)
-            Window.Root.Size = desired
-            uiSizeOverrideConnection = game:GetService("RunService").RenderStepped:Connect(function()
-                if scriptUnloading or not Window or not Window.Root or not Window.Root.Parent then
-                    if uiSizeOverrideConnection then
-                        uiSizeOverrideConnection:Disconnect()
-                        uiSizeOverrideConnection = nil
-                    end
-                    return
-                end
-                if Window.Root.Size.X.Offset ~= uiWidthValue or Window.Root.Size.Y.Offset ~= uiHeightValue then
-                    Window.Root.Size = desired
-                end
-            end)
-        end
-    end)
+    -- Hủy connection cũ
+    if uiSizeOverrideConnection then
+        pcall(function() uiSizeOverrideConnection:Disconnect() end)
+        uiSizeOverrideConnection = nil
+    end
 
-    -- Resize the floating minimizer created by Fluent.
+    -- Resize cửa sổ Fluent
+    local target = resolveResizeTarget()
+    if not target then
+        warn("[TCOE] Không tìm được frame để resize. Window.Root =", Window and Window.Root)
+    else
+        print("[TCOE] Resize target:", target.ClassName, target.Name,
+              "→", uiWidthValue, "x", uiHeightValue)
+
+        local want = UDim2.fromOffset(uiWidthValue, uiHeightValue)
+        pcall(function() target.Size = want end)
+
+        uiSizeOverrideConnection = game:GetService("RunService").RenderStepped:Connect(function()
+            if scriptUnloading or not target or not target.Parent then
+                if uiSizeOverrideConnection then
+                    uiSizeOverrideConnection:Disconnect()
+                    uiSizeOverrideConnection = nil
+                end
+                return
+            end
+            if target.Size.X.Offset ~= uiWidthValue or target.Size.Y.Offset ~= uiHeightValue then
+                target.Size = UDim2.fromOffset(uiWidthValue, uiHeightValue)
+            end
+        end)
+    end
+
+    -- Resize icon minimize
     pcall(function()
         local cg = game:GetService("CoreGui")
         local mg = cg:FindFirstChild("FluentMinimizerGui")
-        local btn = mg and mg:FindFirstChild("FluentMinimizerBtn", true)
+        if not mg then
+            for _, g in ipairs(cg:GetChildren()) do
+                if g:IsA("ScreenGui") and g.Name:lower():find("minimizer") then
+                    mg = g; break
+                end
+            end
+        end
+        if not mg then return end
+        local btn = mg:FindFirstChild("FluentMinimizerBtn", true)
+        if not btn then
+            for _, d in ipairs(mg:GetDescendants()) do
+                if d:IsA("GuiButton") then btn = d; break end
+            end
+        end
         if btn then
             btn.Size = UDim2.fromOffset(uiIconSizeValue, uiIconSizeValue)
             local img = btn:FindFirstChildWhichIsA("ImageLabel", true)
@@ -376,16 +494,19 @@ local function applyUISizes()
 end
 
 local function addSizeInput(section, id, title, defaultValue, setter)
-    return section:AddInput(id, {
+    local input = section:AddInput(id, {
         Title = title,
         Default = tostring(defaultValue),
         Placeholder = tostring(defaultValue),
         Numeric = true,
-        Finished = true,
+        Finished = false, -- ✅ cập nhật realtime, không cần mất focus
         Callback = function(value)
-            setter(tonumber(value) or defaultValue)
+            local n = tonumber(value)
+            if n then setter(n) end
         end,
     })
+    uiSizeInputs[id] = input
+    return input
 end
 
 local UISizeSection = configurationtab:AddSection("UI Size", "solar/ruler-pen-bold")
@@ -1197,8 +1318,14 @@ lib.maketextbox("Build Cube (enter size)",buildtab,function(txt)
 	end
 	stopped = false
 end)
-local loadstr = game:HttpGet("https://rawscripts.net/raw/Universal-Script-Text-to-Blocks-WIP-20736")
-local stuff = loadstring(loadstr)()
+local stuff = safeLoad("https://rawscripts.net/raw/Universal-Script-Text-to-Blocks-WIP-20736", "Text-to-Blocks")
+if not stuff then
+    warn("[TCOE] Text-to-Blocks không tải được — nút 'Build Text' sẽ bị vô hiệu.")
+    stuff = {
+        getblocks = function() return {} end,
+        displayblocks = function() return nil, {}, {} end,
+    }
+end
 lib.maketextbox("Build Text (enter in text)",buildtab,function(txt)
 	built = true
 	stopped = false
@@ -1253,6 +1380,10 @@ lib.maketoggle("Spam signs at where you are",buildtab,function(bool)
 			localplr.Backpack.Sign.Parent = localplr.Character
 		end
 		if localplr.Character and localplr.Character:FindFirstChild("Sign") then
+			local s = "normal"
+			if localplr.PlayerGui:FindFirstChild("Build") and localplr.PlayerGui.Build:FindFirstChild("Button") then
+				s = localplr.PlayerGui.Build.Button.Text
+			end
 			local event = (localplr.Character.Sign:FindFirstChild("origevent") and localplr.Character.Sign.origevent:Invoke(workspace.Terrain,Enum.NormalId.Top,localplr.Character.HumanoidRootPart.Position-Vector3.new(0,1.5,0),s)) or localplr.Character.Sign.Script.Event:FireServer(workspace.Terrain,Enum.NormalId.Top,localplr.Character.HumanoidRootPart.Position-Vector3.new(0,1.5,0),s)
 		end
 	end
@@ -1301,7 +1432,9 @@ daurapart.Transparency = 1
 daurapart.Size = Vector3.new(daurarange,daurarange,daurarange)
 daurapart.Parent = workspace
 lib.maketextbox("Range of delete aura (studs, default is 35)",buildtab,function(txt)
-	daurarange = tonumber(txt)
+	local n = tonumber(txt)
+	if not n then return end
+	daurarange = n
 	daurapart.Size = Vector3.new(daurarange,daurarange,daurarange)
 end)
 local filter = OverlapParams.new()
@@ -1406,7 +1539,10 @@ lib.maketoggle("Outline Selected Block",buildtab,function(bool)
 	end
 end)
 lib.makedropdown("Select Side to build on",buildtab,sides,function(txt)
-	side = Enum.NormalId[txt]
+	if not txt or txt == "" then return end
+	local ok, id = pcall(function() return Enum.NormalId[txt] end)
+	if not ok or not id then return end
+	side = id
 	if sblock then
 		ssbox.Adornee = sblock
 		ssbox.Face = side
@@ -1437,13 +1573,18 @@ lib.maketoggle("Spam selected side of selected block",buildtab,function(bool)
 	end
 end)
 lib.makelabel("Fancy Stuff (change building size to detailed to make stuff smaller)",buildtab)
-local qrcodegen = loadstring(game:HttpGet("https://raw.githubusercontent.com/speedata/luaqrcode/refs/heads/master/qrencode.lua"))()
+local qrcodegen = safeLoad("https://raw.githubusercontent.com/speedata/luaqrcode/refs/heads/master/qrencode.lua", "QRCode")
+if not qrcodegen then
+    warn("[TCOE] QRCode library không tải được — nút 'Build QR Code' sẽ bị vô hiệu.")
+    qrcodegen = { qrcode = function() return nil, {} end }
+end
 local ob = false
 lib.maketoggle("Only build black parts",buildtab,function(bool)
 	ob = bool
 end)
 lib.maketextbox("Build QR Code",buildtab,function(txt)
 	local success,qrcode = qrcodegen.qrcode(tostring(txt))
+	if not success or not qrcode then return end
 	built = true
 	stopped = false
 	local stopbuild = false
@@ -1515,25 +1656,9 @@ end
 lib.makelabel("The script cannot tell the difference between a toxify and a neon so its defaulted to neon (mb)",bsaltab)
 lib.makelabel("Saving spray images also doesnt work because for some reason it doesnt show :(",bsaltab)
 lib.makelabel("Signs also dont work (for now)",bsaltab)
-lib.makebutton("Stop Building",bsaltab,function()
-	stopped = true
-end)
-lib.makebutton("Skip Block",bsaltab,function()
-	skipblock = true
-end)
-lib.makelabel("saving builds",bsaltab)
 local starterui = game:GetService("StarterGui")
 local savebuildname = "Untitled"
 local savebuildnames = {}
-local textbox
-textbox = lib.maketextbox("Set Build Name",bsaltab,function(txt)
-	txt = validate(txt) -- freaking hooligans bro
-	savebuildname = txt
-	textbox.Text = ""
-	textbox.PlaceholderText = "Successfully Named Build"
-	wait(1)
-	textbox.PlaceholderText = "Set Build Name"
-end)
 local selectedbuild = nil
 local builds = {}
 local builddropdown
@@ -1649,37 +1774,6 @@ function createpartrepl(pos,bsize,col,mat,transp,anch,collide,sprays)
 	p.Parent = workspace
 	return p
 end
--- glaze = glass
--- ghost = transparency 0.03 (plastic)
--- workspace.Bricks.whateverplayer.Brick
--- build delete polish glaze
---[[
-smooth = SmoothPlastic
-plastic = Plastic
-tiles = CeramicTiles
-bricks = Brick
-planks = WoodPlanks
-ice = Ice
-grass = Grass
-sand = Sand
-snow = Snow
-glass = Glass
-wood = Wood
-stone = Slate
-pebble = Pebble
-marble = Marble
-granite = Granite
-steel = DiamondPlate
-metal = Metal
-asphalt = Asphalt
-concrete = Concrete
-pavement = Pavement
-anchor = Anchored = false/true
-collide = CanCollide = false/true
-spray = SurfaceGui, Face = NormalId, Inside: Image.Image = blank if not exist, Label.Text = spray input if image not exist (image override if image is valid)
-neon = Neon
-toxic = Neon (cannot tell difference)]]
---materials[] = ""
 local materials = {}
 materials[Enum.Material.SmoothPlastic] = "smooth"
 materials[Enum.Material.Plastic] = "plastic"
@@ -1720,23 +1814,14 @@ function saveblock(bl)
 		blockdata.a = bl.Anchored
 		blockdata.cc = bl.CanCollide
 		if bl.Size.X ~= mult or bl.Size.Y ~= mult or bl.Size.Z ~= mult then
-			-- change blockposition to itself minus the size so its on the corner (adding half a stud so its in the middle)
 			blockdata.p[1] = (blockdata.p[1] - (bl.Size.X/2))+.5
 			blockdata.p[2] = (blockdata.p[2] - (bl.Size.Y/2))+.5
 			blockdata.p[3] = (blockdata.p[3] - (bl.Size.Z/2))+.5
-			--createpartpos(CFrame.new(table.unpack(blockdata.pos)),Color3.fromRGB(255,0,0))
 			blockdata.s = {bl.Size.X,bl.Size.Y,bl.Size.Z}
 		else
-			--createpartpos(CFrame.new(table.unpack(blockdata.pos)),Color3.fromRGB(0,255,0))
 		end
---[[
-		if bl.Material == Enum.Material. then
-			blockdata.mat = ""
-		end
-]]
 		blockdata.m = materials[bl.Material]
 		blockdata.o = bl.Material.Name
-		-- no toxify because we cant tell the difference between neon and toxify :(
 		blockdata.sp = {}
 		for i,v in pairs(bl:GetChildren()) do
 			if v.Name == "Spray" then
@@ -1748,6 +1833,93 @@ function saveblock(bl)
 end
 
 
+local plrbuild = nil
+local plrbuilds = {ServerBuilds = workspace.Bricks}
+local plrnames = {"ServerBuilds"}
+local hpb = true
+local buildhighlight = Instance.new("Highlight")
+buildhighlight.Parent = game.CoreGui
+buildhighlight.FillColor = Color3.fromRGB(0,255,0)
+buildhighlight.FillTransparency = .9
+function upddd()
+	table.sort(plrnames,function(a,b)
+		return a:lower() < b:lower()
+	end)
+	lib.updatedropdown(plrdropdown,plrnames)
+end
+function dobricks(f,nud)
+	plrbuilds[f.Name] = f
+	if f:FindFirstChild("Brick") then
+		table.insert(plrnames,f.Name)
+	end
+	table.insert(conn,f.ChildAdded:Connect(function(b)
+		if not table.find(plrnames,f.Name) then
+			table.insert(plrnames,f.Name)
+			upddd()
+		end
+	end))
+	table.insert(conn,f.ChildRemoved:Connect(function(b)
+		if #f:GetChildren() <= 0 and table.find(plrnames,f.Name) then
+			table.remove(plrnames,table.find(plrnames,f.Name))
+			upddd()
+		end
+	end))
+	if nud == nil then
+		upddd()
+	end
+end
+for i,v in pairs(workspace.Bricks:GetChildren()) do
+	if v:IsA("Model") then
+		dobricks(v,true)
+	end
+end
+upddd()
+local onbrick = workspace.Bricks.ChildAdded:Connect(function(child)
+	dobricks(child)
+end)
+-- ====== Build Save/Load UI order ======
+-- ====== Check Bricks Buttons ======
+local function countBricksInModel(model)
+	if not model then return 0 end
+	local count = 0
+	for _, v in ipairs(model:GetDescendants()) do
+		if v:IsA("BasePart") then
+			count = count + 1
+		end
+	end
+	return count
+end
+
+local function showBrickCount(title, count)
+	game:GetService("StarterGui"):SetCore("SendNotification", {
+		Title = title,
+		Text = "Found " .. count .. " brick(s)",
+		Duration = 4
+	})
+end
+
+-- Nút 1: Check bricks của chính mình
+lib.makebutton("Check bricks (own)", bsaltab, function()
+	local myModel = workspace.Bricks:FindFirstChild(localplr.Name)
+	local count = myModel and countBricksInModel(myModel) or 0
+	showBrickCount("Your Build", count)
+end)
+
+-- Nút 2: Check tất cả bricks trong server
+lib.makebutton("Check server bricks", bsaltab, function()
+	local count = countBricksInModel(workspace.Bricks)
+	showBrickCount("Server Builds", count)
+end)
+
+
+lib.maketextbox("Set Build Name",bsaltab,function(txt)
+	savebuildname = validate(txt)
+	game:GetService("StarterGui"):SetCore("SendNotification", {
+		Title = "Build Name Set",
+		Text = "Saved as: " .. tostring(savebuildname),
+		Duration = 2,
+	})
+end)
 lib.makebutton("Save Build",bsaltab,function()
 	local builddata = {}
 	for i,v in pairs(workspace.Bricks[localplr.Name]:GetChildren()) do
@@ -1786,64 +1958,10 @@ lib.makebutton("Save Server Builds",bsaltab,function()
 	writefile("TheChosenOneBuilds/"..savebuildname2..".json",http:JSONEncode(builddata))
 	updatedropdown()
 end)
-local plrbuild = nil
-local plrbuilds = {ServerBuilds = workspace.Bricks}
-local plrnames = {"ServerBuilds"}
-local hpb = true
-local buildhighlight = Instance.new("Highlight")
-buildhighlight.Parent = game.CoreGui
-buildhighlight.FillColor = Color3.fromRGB(0,255,0)
-buildhighlight.FillTransparency = .9
 plrdropdown = lib.makedropdown("Select Player Builds",bsaltab,{},function(sel)
 	plrbuild = plrbuilds[sel]
 	buildhighlight.Adornee = plrbuild
 end)
-function upddd()
-	table.sort(plrnames,function(a,b)
-		return a:lower() < b:lower()
-	end)
-	lib.updatedropdown(plrdropdown,plrnames)
-end
-function dobricks(f,nud)
-	plrbuilds[f.Name] = f
-	if f:FindFirstChild("Brick") then
-		table.insert(plrnames,f.Name)
-	end
-	table.insert(conn,f.ChildAdded:Connect(function(b)
-		if not table.find(plrnames,f.Name) then
-			table.insert(plrnames,f.Name)
-			upddd()
-		end
-	end))
-	table.insert(conn,f.ChildRemoved:Connect(function(b)
-		if #f:GetChildren() <= 0 and table.find(plrnames,f.Name) then
-			table.remove(plrnames,table.find(plrnames,f.Name))
-			upddd()
-		end
-	end))
-	if nud == nil then
-		upddd()
-	end
-end
-for i,v in pairs(workspace.Bricks:GetChildren()) do
-	if v:IsA("Model") then
-		dobricks(v,true)
-	end
-end
-upddd()
-local onbrick = workspace.Bricks.ChildAdded:Connect(function(child)
-	dobricks(child)
-end)
-lib.maketoggle("Highlight Player Build",bsaltab,function()
-	hpb = bool
-	if not hpb then
-		buildhighlight.FillTransparency = 1
-		buildhighlight.OutlineTransparency = 1
-	elseif hpb then
-		buildhighlight.FillTransparency = .9
-		buildhighlight.OutlineTransparency = 0
-	end
-end,true)
 lib.makebutton("Save Player Build",bsaltab,function()
 	local builddata = {}
 	for i,v in pairs(plrbuild:GetChildren()) do
@@ -1863,39 +1981,16 @@ lib.makebutton("Save Player Build",bsaltab,function()
 	writefile("TheChosenOneBuilds/"..savebuildname2..".json",http:JSONEncode(builddata))
 	updatedropdown()
 end)
-
--- ====== Check Bricks Buttons ======
-local function countBricksInModel(model)
-	if not model then return 0 end
-	local count = 0
-	for _, v in ipairs(model:GetDescendants()) do
-		if v:IsA("BasePart") then
-			count = count + 1
-		end
+lib.maketoggle("Highlight Player Build",bsaltab,function(value)
+	hpb = value
+	if not hpb then
+		buildhighlight.FillTransparency = 1
+		buildhighlight.OutlineTransparency = 1
+	else
+		buildhighlight.FillTransparency = .9
+		buildhighlight.OutlineTransparency = 0
 	end
-	return count
-end
-
-local function showBrickCount(title, count)
-	game:GetService("StarterGui"):SetCore("SendNotification", {
-		Title = title,
-		Text = "Found " .. count .. " brick(s)",
-		Duration = 4
-	})
-end
-
--- Nút 1: Check bricks của chính mình
-lib.makebutton("Check bricks (own)", bsaltab, function()
-	local myModel = workspace.Bricks:FindFirstChild(localplr.Name)
-	local count = myModel and countBricksInModel(myModel) or 0
-	showBrickCount("Your Build", count)
-end)
-
--- Nút 2: Check tất cả bricks trong server
-lib.makebutton("Check server bricks", bsaltab, function()
-	local count = countBricksInModel(workspace.Bricks)
-	showBrickCount("Server Builds", count)
-end)
+end,true)
 
 -- Nút 3: Check bricks của player đang chọn trong dropdown
 lib.makebutton("Check player bricks", bsaltab, function()
@@ -1921,11 +2016,15 @@ lib.makebutton("Check player bricks", bsaltab, function()
 		})
 	end
 end)
--- ====== End Check Bricks ======
-
 lib.makelabel("loading/deleting builds",bsaltab)
 builddropdown = lib.makedropdown("Saved Builds",bsaltab,{},function(sel)
-	selectedbuild = {sel,http:JSONDecode(readfile("TheChosenOneBuilds/"..sel..".json"))}
+	if not sel or sel == "" then return end
+	local path = "TheChosenOneBuilds/"..sel..".json"
+	local okRead, content = pcall(readfile, path)
+	if not okRead or not content then return end
+	local okDecode, data = pcall(function() return http:JSONDecode(content) end)
+	if not okDecode or not data then return end
+	selectedbuild = {sel, data}
 end)
 local bindfunc = Instance.new("BindableFunction")
 bindfunc.OnInvoke = function(prompt)
@@ -1935,16 +2034,95 @@ bindfunc.OnInvoke = function(prompt)
 		updatedropdown()
 	end
 end
+lib.makebutton("Load Save",bsaltab,function()
+	if selectedbuild ~= nil then
+		local build = getbuild()
+		if build then
+			if oldprt then
+				oldprt:Destroy()
+			end
+			local loadbuild = optimizeLoadOrder(selectedbuild[2])
+			for i,v in ipairs(loadbuild) do
+				if stopped == true then
+					break
+				end
+				local blocktype = nil
+				local args = {}
+				local posses = (v.p or v.pos)
+				args[1] = CFrame.new(posses[1],posses[2],posses[3]).Position + gizmoOffset
+				args[2] = v.m or v.mat
+				args[3] = Color3.fromRGB(table.unpack(v.c or v.color))
+				if v.s or v.size then
+					args[5] = Vector3.new(table.unpack(v.s or v.size))
+				end
+				createpartrepl(args[1],args[5],args[3],swappedmaterials[v.m or v.mat])
+				args[7] = v.o or v.origmat
+				args[8] = v.sp or v.sprayed
+				args[9] = v.a or v.anchored
+				args[10] = v.cc
+				if args[10] == nil then
+					args[10] = v.collide
+				end
+				buildblock(args[1],args[2],args[3],nil,args[5],nil,args[7],args[8],args[9],args[10])
+			end
+			stopped = false
+		end
+	end
+end)
 lib.makebutton("Delete Save",bsaltab,function()
 	starterui:SetCore("SendNotification",{Title="Delete Save?",Text="Are you sure you want to delete the save?",Duration=5,Callback=bindfunc,Button1="Yes",Button2="No"})
 end)
+lib.makebutton("Display Whole Build (might lag, only you see)",bsaltab,function()
+	if selectedbuild~=nil then
+		local build=getbuild()
+		if build then
+			gizmoOffset=Vector3.new(0,0,0)
+			if prttable then for _,v in pairs(prttable) do if v then v:Destroy() end end end
+			previewBaseCFrames={}
+			gizmoPivotCenter=nil
+			destroyOffsetGizmo()
+			local laggyparttable={}
+			for _,v in pairs(selectedbuild[2]) do
+				local posses=v.pos or v.p
+				if posses then
+					local cf=CFrame.new(table.unpack(posses))
+					local size=v.size and Vector3.new(table.unpack(v.size)) or (v.s and Vector3.new(table.unpack(v.s)))
+					local col=Color3.fromRGB(table.unpack(v.color or v.c))
+					local collide=v.collide; if collide==nil then collide=v.cc end
+					local prt=createpartrepl(cf,size,col,swappedmaterials[v.mat or v.m],0,v.anchored or v.a,collide,v.sprayed or v.sp)
+					table.insert(laggyparttable,prt)
+					-- Keep the exact CFrame produced by createpartrepl.
+					-- Position Offset must move the already-correct preview, not the raw save CFrame.
+					if prt then
+						previewBaseCFrames[#laggyparttable]=prt.CFrame
+					end
+				end
+			end
+			prttable=laggyparttable
+			gizmoPivotCenter=getPreviewCenter()
+			updateTransformFields()
+			setTransformTabVisible(true)
+			createAxisGizmo()
+		end
+	end
+end)
+
+lib.makebutton("Delete build display (might lag, only you see)",bsaltab,function()
+	gizmoOffset=Vector3.new(0,0,0)
+	gizmoPivotCenter=nil
+	previewBaseCFrames={}
+	if prttable then for _,v in pairs(prttable) do if v then v:Destroy() end end; prttable=nil end
+	destroyOffsetGizmo()
+	updateTransformFields()
+	setTransformTabVisible(false)
+end)
+
 function getbuild()
 	if selectedbuild then
 		return selectedbuild[2]
 	end
 	return nil
 end
-local gizmoOffset = Vector3.new(0,0,0)
 
 -- BUILD OPTIMIZER TEST ONLY:
 -- Reorders the saved blocks so same-size face-neighbours are loaded
@@ -2034,41 +2212,6 @@ function optimizeLoadOrder(build)
 
 	return ordered
 end
-lib.makebutton("Load Save",bsaltab,function()
-	if selectedbuild ~= nil then
-		local build = getbuild()
-		if build then
-			if oldprt then
-				oldprt:Destroy()
-			end
-			local loadbuild = optimizeLoadOrder(selectedbuild[2])
-			for i,v in ipairs(loadbuild) do
-				if stopped == true then
-					break
-				end
-				local blocktype = nil
-				local args = {}
-				local posses = (v.p or v.pos)
-				args[1] = CFrame.new(posses[1],posses[2],posses[3]).Position + gizmoOffset
-				args[2] = v.m or v.mat
-				args[3] = Color3.fromRGB(table.unpack(v.c or v.color))
-				if v.s or v.size then
-					args[5] = Vector3.new(table.unpack(v.s or v.size))
-				end
-				createpartrepl(args[1],args[5],args[3],swappedmaterials[v.m or v.mat])
-				args[7] = v.o or v.origmat
-				args[8] = v.sp or v.sprayed
-				args[9] = v.a or v.anchored
-				args[10] = v.cc
-				if args[10] == nil then
-					args[10] = v.collide
-				end
-				buildblock(args[1],args[2],args[3],nil,args[5],nil,args[7],args[8],args[9],args[10])
-			end
-			stopped = false
-		end
-	end
-end)
 function optimizebuilds()
 	if selectedbuild ~= nil then
 		local build = getbuild()
@@ -2097,23 +2240,9 @@ function optimizebuilds()
 		end
 	end
 end
-lib.makelabel("extra settings/display build",bsaltab)
-lib.makebutton("OPTIMIZE BUILD (if build is already optimized/saved after this update then it will error)",bsaltab,function()
-	optimizebuilds()
-end)
-lib.makebutton("OPTIMIZE ALL BUILDS (RECOMMENDED)",bsaltab,function()
-	local psb = selectedbuild
-	for i,v in pairs(listfilesfixed("TheChosenOneBuilds/")) do
-		local v2 = http:JSONDecode(readfile(v))
-		selectedbuild = {v,v2}
-		local s,e = pcall(optimizebuilds)
-		if not s then print("Build Already Optimized! ("..v..") \n",e) end
-	end
-	selectedbuild = psb
-end)
-
 -- ====== Whole Build XYZ Move Gizmo + Transform tab ======
-local prttable = nil
+-- prttable / gizmoOffset / gizmoPivotCenter / previewBaseCFrames / createAxisGizmo
+-- đã được forward-declare ở đầu script (trước lib.maketab("Build")).
 local offsetgizmo = nil
 local gizmoDragging = false
 local gizmoAxis = nil
@@ -2124,10 +2253,7 @@ local gizmoDragStartCFrames = {}
 local gizmoDragStartGizmoCFrames = {}
 local gizmoConnections = {}
 local gizmoTouchInput = nil
-local gizmoPivotCenter = nil
-local previewBaseCFrames = {}
 local positionBoxes = {}
-local createAxisGizmo
 
 local function roundTransformNumber(n)
 	return math.round(n * 100) / 100
@@ -2135,7 +2261,7 @@ end
 
 local updatingTransformFields = false
 
-local function updateTransformFields()
+updateTransformFields = function()
 	-- Guard against Fluent Input:SetValue() firing the textbox callback
 	-- while these fields are being updated programmatically.
 	if updatingTransformFields then return end
@@ -2153,7 +2279,7 @@ local function updateTransformFields()
 	if not ok then warn("Better Extra Transform UI update error:", err) end
 end
 
-local function getPreviewCenter()
+getPreviewCenter = function()
 	if gizmoPivotCenter then return gizmoPivotCenter + gizmoOffset end
 	if not prttable or #prttable==0 then return nil end
 	local minv=Vector3.new(math.huge,math.huge,math.huge)
@@ -2206,7 +2332,7 @@ local function disconnectGizmoConnections()
 	gizmoConnections={}
 end
 
-local function destroyOffsetGizmo()
+destroyOffsetGizmo = function()
 	gizmoDragging=false
 	gizmoAxis=nil
 	gizmoDragStartHit=nil
@@ -2410,6 +2536,10 @@ lib.makebutton("Load Save",transformtab,function()
 	end
 end)
 
+lib.makebutton("Stop Building",transformtab,function()
+	stopped = true
+end)
+
 lib.makelabel("Position (World Coordinates)",transformtab)
 positionBoxes.X=lib.maketextbox("Position X",transformtab,function(txt) setPositionAxis("X",txt) end)
 positionBoxes.Y=lib.maketextbox("Position Y",transformtab,function(txt) setPositionAxis("Y",txt) end)
@@ -2422,50 +2552,6 @@ lib.makebutton("Reset Position",transformtab,function()
 end)
 lib.makelabel("Move with the XYZ gizmo or enter the build position above. Reset returns to the original saved world position.",transformtab)
 
-lib.makebutton("Display Whole Build (might lag, only you see)",bsaltab,function()
-	if selectedbuild~=nil then
-		local build=getbuild()
-		if build then
-			gizmoOffset=Vector3.new(0,0,0)
-			if prttable then for _,v in pairs(prttable) do if v then v:Destroy() end end end
-			previewBaseCFrames={}
-			gizmoPivotCenter=nil
-			destroyOffsetGizmo()
-			local laggyparttable={}
-			for _,v in pairs(selectedbuild[2]) do
-				local posses=v.pos or v.p
-				if posses then
-					local cf=CFrame.new(table.unpack(posses))
-					local size=v.size and Vector3.new(table.unpack(v.size)) or (v.s and Vector3.new(table.unpack(v.s)))
-					local col=Color3.fromRGB(table.unpack(v.color or v.c))
-					local collide=v.collide; if collide==nil then collide=v.cc end
-					local prt=createpartrepl(cf,size,col,swappedmaterials[v.mat or v.m],0,v.anchored or v.a,collide,v.sprayed or v.sp)
-					table.insert(laggyparttable,prt)
-					-- Keep the exact CFrame produced by createpartrepl.
-					-- Position Offset must move the already-correct preview, not the raw save CFrame.
-					if prt then
-						previewBaseCFrames[#laggyparttable]=prt.CFrame
-					end
-				end
-			end
-			prttable=laggyparttable
-			gizmoPivotCenter=getPreviewCenter()
-			updateTransformFields()
-			setTransformTabVisible(true)
-			createAxisGizmo()
-		end
-	end
-end)
-
-lib.makebutton("Delete build display (might lag, only you see)",bsaltab,function()
-	gizmoOffset=Vector3.new(0,0,0)
-	gizmoPivotCenter=nil
-	previewBaseCFrames={}
-	if prttable then for _,v in pairs(prttable) do if v then v:Destroy() end end; prttable=nil end
-	destroyOffsetGizmo()
-	updateTransformFields()
-	setTransformTabVisible(false)
-end)
 
 lib.makelabel("settings to make building faster",bsaltab)
 lib.makelabel("The more brick history the more smooth the building will go, but if its too high it might lag",bsaltab)
@@ -2710,16 +2796,30 @@ local s,e = pcall(function()
 	savegears()
 end)
 local spamming = nil
-lib.maketoggle("Spam Equipped Tools",tooltab,function(bool)
-	if bool then
-		spamming = true
-	else
-		spamming = nil
-	end
-end)
 local dee = false
+local suaeq = false
+local dee2 = true
+local pickuptools = true
+local autodroptools = true
+local currhum = nil
+lib.maketoggle("Don't equip enlighten when dropping tools (For auto drop)",tooltab,function(bool)
+	dee2 = bool
+end,true)
+lib.maketoggle("Auto Drop Tools On Death",tooltab,function(bool)
+	autodroptools = bool
+end,true)
+lib.maketoggle("Auto Pickup Your Dropped Tools",tooltab,function(bool)
+	pickuptools = bool
+end,true)
 lib.maketoggle("Don't equip enlighten when dropping/equipping tools",tooltab,function(bool)
 	dee = bool
+end)
+lib.maketoggle("Spam Equip and Unequip all tools",tooltab,function(bool)
+	if bool then
+		suaeq = true
+	else
+		suaeq = nil
+	end
 end)
 lib.makebutton("Equip All Tools",tooltab,function()
 	for i,v in pairs(localplr.Backpack:GetChildren()) do
@@ -2730,102 +2830,27 @@ lib.makebutton("Equip All Tools",tooltab,function()
 		end
 	end
 end)
-lib.makelabel("warning",tooltab)
+local dropAllToolsConfirm = Instance.new("BindableFunction")
+dropAllToolsConfirm.OnInvoke = function(prompt)
+	if prompt == "Yes" then
+		for i,v in pairs(localplr.Backpack:GetChildren()) do
+			if v:IsA("Tool") then
+				if (dee and v.Name ~= "The Arkenstone") or not dee then
+					v.Parent = localplr.Character
+				end
+			end
+		end
+		task.wait()
+		for i,v in pairs(localplr.Character:GetChildren()) do
+			if v:IsA("Tool") then
+				v.Parent = workspace
+			end
+		end
+	end
+end
 lib.makebutton("Drop All Tools",tooltab,function()
-	for i,v in pairs(localplr.Backpack:GetChildren()) do
-		if v:IsA("Tool") then
-			if (dee and v.Name ~= "The Arkenstone") or not dee then
-				v.Parent = localplr.Character
-			end
-		end
-	end
-	task.wait()
-	for i,v in pairs(localplr.Character:GetChildren()) do
-		if v:IsA("Tool") then
-			v.Parent = workspace
-		end
-	end
+	starterui:SetCore("SendNotification",{Title="Drop All Tools?",Text="Are you sure you want to drop all tools?",Duration=5,Callback=dropAllToolsConfirm,Button1="Yes",Button2="No"})
 end)
-lib.makelabel("warning",tooltab)
-local suaeq = false
-lib.maketoggle("Spam Equip and Unequip all tools",tooltab,function(bool)
-	if bool then
-		suaeq = true
-	else
-		suaeq = nil
-	end
-end)
-local dee2 = true
-lib.maketoggle("Don't equip enlighten when dropping tools (For auto drop)",tooltab,function(bool)
-	dee2 = bool
-end,true)
-local pickuptools = true
-local autodroptools = true
-local currhum = nil
-function dc(c)
-	local f = c.ChildAdded:Connect(function(child)
-		if not child then
-			return
-		end
-		if child:IsA("Humanoid") then
-			currhum = child
-		elseif child:IsA("Tool") and not child:HasTag("DroppedByScript") then
-			child:AddTag("DroppedByScript")
-		end
-	end)
-	if c:FindFirstChild("Humanoid") then
-		currhum = c.Humanoid
-	end
-	coroutine.wrap(function()
-		repeat task.wait(10) until c == nil or c.Parent == nil
-		f:Disconnect()
-	end)()
-end
-if localplr.Character then
-	dc(localplr.Character)
-end
-local onchradded = localplr.CharacterAdded:Connect(function(c)
-	dc(c)
-end)
-local ot = false
-local autoperm = false
-local alwaysreset = false
-local alwaysresetall = false
-coroutine.wrap(function()
-	repeat
-		task.wait(.1)
-		if currhum ~= nil and currhum.Parent ~= nil then
-			if pickuptools and currhum.Health > 0 then
-				for i,v in pairs(workspace:GetChildren()) do
-					if v:IsA("Tool") and v:FindFirstChild("Handle") and v:HasTag("DroppedByScript") then
-						currhum:EquipTool(v)
-						if v.Name == "The Arkenstone" and autoperm then
-							task.wait(.1)
-						end
-					end
-				end
-			end
-			if autodroptools and currhum.Health <= 0 then
-				for i,v in pairs(localplr.Backpack:GetChildren()) do
-					if ((dee2 and v.Name ~= "The Arkenstone") or not dee2) then
-						v.Parent = localplr.Character
-					end
-				end
-				for i,v in pairs(localplr.Character:GetChildren()) do
-					if v:IsA("Tool") and ((dee2 and v.Name ~= "The Arkenstone") or not dee2) then
-						v.Parent = workspace
-					end
-				end
-			end
-		end
-	until not on
-end)()
-lib.maketoggle("Auto Pickup Your Dropped Tools",tooltab,function(bool)
-	pickuptools = bool
-end,true)
-lib.maketoggle("Auto Drop Tools On Death",tooltab,function(bool)
-	autodroptools = bool
-end,true)
 local commands = {}
 local heldtools = {}
 local hb = 0
@@ -2904,201 +2929,6 @@ local onrender = game:GetService("RunService").Heartbeat:Connect(function()
 		localplr.Character.HumanoidRootPart.Velocity = Vector3.new(0,0,0)
 	end
 end)
-lib.makebutton("Execute RomazDev Hub",scripttab,function()
-	loadstring(game:HttpGet("https://vss.pandadevelopment.net/virtual/file/f2294e3fbec74e34"))()
-end)
---[[lib.makebutton("Execute Ender Hub",scripttab,function()
-	-- brooo we're waiting on you qilex...
-end)]]
-lib.maketoggle("Auto Permanent Enlighten (PATCHED)",scripttab,function(bool)
-	autoperm = bool
-end)
-lib.maketoggle("Spam reset",scripttab,function(bool)
-	alwaysreset = bool
-end)
-lib.maketoggle("Spam reset all",scripttab,function(bool)
-	alwaysresetall = bool
-end)
-lib.makelabel("Since the chosen one updated to the new roblox chat, the no chat logger no longer works, use the 'clear chat logs' thing.",scripttab)
-function clearclogs(amt)
-	for i=1,amt do
-		coroutine.wrap(function()
-			say(";","system")
-		end)()
-	end
-end
-lib.makelabel("The clear chat of logs makes it so that if someone reports you, roblox will look into your first 10-15 chats (which will be cleared) and u wont get banned",scripttab)
-lib.makelabel("(however, you have to manually clear it and you cant chat for a few seconds)",scripttab)
-lib.makelabel("clear chat log by vxsty",scripttab)
-lib.makebutton("Clear chat of logs (10)",scripttab,function()
-	clearclogs(10)
-end)
-lib.makebutton("Clear chat of logs (20)",scripttab,function()
-	clearclogs(20)
-end)
-local ccol = false
-lib.maketoggle("Always clear chat of logs (RECOMMENDED, COMMANDS WONT WORK WHEN ENABLED)",scripttab,function(bool)
-	ccol = bool
-	while ccol do
-		task.wait()
-		clearclogs(5)
-	end
-end)
-local threeemdash = "\u{2E3B}"
-lib.maketextbox("Say Long Message (broken D:)",scripttab,function(input)
-	if input == "" or input == nil then
-		input = "200"
-	end
-	input = tonumber(input)
-	say(string.rep(threeemdash,input),"All")
-end)
-lib.makelabel("warning",scripttab)
-lib.makebutton("Execute Fling All Script",scripttab,function()
-	if loadfile ~= nil and writefile ~= nil and readfile ~= nil then
-		local cache = nil
-		local success,err = pcall(function()
-			cache = readfile("CachedFlingAll.txt")
-		end)
-		if not cache then
-			cache = game:HttpGet("https://rawscripts.net/raw/Universal-Script-FLING-ALL-SCRIPT-17590")
-			writefile("CachedFlingAll.txt",cache)
-		end
-		loadstring(cache)()
-	else
-		loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-FLING-ALL-SCRIPT-17590"))()
-	end
-end)
-lib.makelabel("warning",scripttab)
-lib.makebutton("Join VC Server",scripttab,function()
-	game:GetService("TeleportService"):Teleport(12943247001,localplr)
-end)
-lib.makelabel("warning",scripttab)
-local dbut = nil
-dbut = lib.makebutton("Execute Zte Hub (HAS SILENT COMMAND LOGGER!)",scripttab,function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/khanh-lol/Ztehub/refs/heads/main/zte"))() 
-	dbut:Destroy()
-end)
-local savefile = "tcospamcommandssave.txt"
-local spamtxtssave = {}
-local spamtxtinstance = {}
-local spamnum = 0
-local truncatetxt = true
-local spamcmd = true
-function addcmd(txt,save,index,start)
-	local spamtxt = false
-	if not index then
-		if #spamtxtssave > 0 then
-			for i,v in pairs(spamtxtssave) do
-				if spamtxtssave[i+1] == nil then
-					index = i+1
-					break
-				end
-			end
-		else
-			index = 1
-		end
-	end
-	spamnum = index
-	local num = spamnum
-	if save then
-		spamtxtssave[spamnum] = txt
-		--spamtxtssave["max"] = spamnum
-	end
-	local previewcmd = string.split(txt," ")[1]
-	if not truncatetxt then
-		previewcmd = txt
-	end
-	local tog = nil
-	if spamcmd then
-		commands[txt] = start or false
-		tog = lib.maketoggle("Spam Command/Text ("..previewcmd.." "..tostring(num)..")",commandtab,function(bool)
-			commands[txt] = bool
-		end,start or nil)
-	else
-		commands[txt] = false
-		tog = lib.makebutton("Say Command/Text ("..previewcmd.." "..tostring(num)..")",commandtab,function()
-			if not attemptreset then
-				say(txt,"system")
-			end
-		end)
-	end
-	spamtxtinstance[spamnum] = {tog,txt}
-	if save then
-		writefile(savefile,http:JSONEncode(spamtxtssave))
-	end
-	for i,v in pairs(spamtxtinstance) do
-		v[1].LayoutOrder = i
-	end
-end
-lib.maketoggle("Truncate/Shorten Text",commandtab,function(bool)
-	truncatetxt = bool
-	for i,v in pairs(spamtxtinstance) do
-		v[1]:Destroy()
-		--spamtxtinstance[i] = nil
-	end
-	for i,v in pairs(spamtxtssave) do
-		i = tonumber(i)
-		addcmd(v,false,i,commands[v])
-	end
-end,true)
-lib.maketoggle("Spam Commands",commandtab,function(bool)
-	spamcmd = bool
-	for i,v in pairs(spamtxtinstance) do
-		v[1]:Destroy()
-		--spamtxtinstance[i] = nil
-	end
-	for i,v in pairs(spamtxtssave) do
-		i = tonumber(i)
-		addcmd(v,false,i,commands[v])
-	end
-end,true)
-lib.maketextbox("Enter Command",commandtab,function(txt)
-	txt = string.gsub(txt,'"','\"')
-	addcmd(txt,true)
-end)
-lib.maketextbox("Remove Command (put exact command)",commandtab,function(txt)
-	for i,v in pairs(spamtxtssave) do
-		if v == txt then
-			spamtxtssave[i] = nil
-		end
-	end
-	commands[txt] = false
-	for i,v in pairs(spamtxtinstance) do
-		if v[2] == txt then
-			v[1]:Destroy()
-		end
-	end
-	writefile(savefile,http:JSONEncode(spamtxtssave))
-end)
-local bindfunc = Instance.new("BindableFunction")
-bindfunc.OnInvoke = function(prompt)
-	if prompt == "Yes" then
-		for i,v in pairs(spamtxtinstance) do
-			v[1]:Destroy()
-			spamtxtinstance[i] = nil
-		end
-		commands = {}
-		spamtxtssave = {}
-		writefile(savefile,http:JSONEncode(spamtxtssave))
-	end
-end
-lib.makebutton("Reset All Commands",commandtab,function()
-	starterui:SetCore("SendNotification",{Title="Delete Commands?",Text="Are you sure you want to reset the commands?",Duration=5,Callback=bindfunc,Button1="Yes",Button2="No"})
-end)
-lib.makelabel("",commandtab)
-local s,e = pcall(function()
-	local save = readfile(savefile)
-	if save then
-		spamtxtssave = http:JSONDecode(save) or {}
-		for i,v in pairs(spamtxtssave) do
-			i = tonumber(i)
-			addcmd(v,false,i)
-			--elseif i == "max" then
-				--spamnum = v
-		end
-	end
-end)
-
 local spychat = true
 lib.maketoggle("SPY CHAT",modtab,function(bool)
 	spychat = bool
@@ -3279,18 +3109,6 @@ inputbegan = game:GetService("UserInputService").InputBegan:Connect(function(inp
 end)
 
 local groups = {}
---[[groups[5345749] = {"Chosen One Enthusiasts Club",Color3.fromRGB(0,255,0)}
-groups[35956339] = {"Clementiuilo",Color3.fromRGB(108,77,59)}
-groups[33203248] = {"Roblox's Rejects",Color3.fromRGB(177,125,82)}
-groups[35155850] = {"Unchainable Mercy",Color3.fromRGB(108,77,59)}
-groups[35985581] = {"Genesis",Color3.fromRGB(82,138,174)}
-groups[33258647] = {"Union of Mirrland Communist States",Color3.fromRGB(120,0,0)}
-groups[34915496] = {"dauens silly",{0,120,0}}
-groups[34348476] = {"Frigid's silly fan club",Color3.fromRGB(0,0,200)}
-groups[34838919] = {"Cult Of Combat",Color3.fromRGB(255,0,0)}
-groups[34838919] = {"The Eternal Flame of TCO",Color3.fromRGB(255,255,0)}
-groups[35986983] = {"Realm ???",Color3.fromRGB(42,73,199)}
-groups[286855251] = {"The Mafia",Color3.fromRGB(0,0,0)}]]
 local dheads = {}
 function plradded(plr)
 	local owner = scrowners[plr.UserId]
@@ -3364,66 +3182,64 @@ end
 local onplr = game.Players.PlayerAdded:Connect(plradded)
 lib.ondestroyedfunc = function()
 	on = false
-	ot = false
-	ccol = false
 	stopped = true
 	skipblock = true
-	autoperm = false
-	alwaysreset = false
-	alwaysresetall = false
 	built = true
 	spychat = false
-	cubechild:Disconnect()
-	onrender:Disconnect()
-	inputbegan:Disconnect()
-	highlight:Destroy()
-	onplr:Disconnect()
+	pcall(function() cubechild:Disconnect() end)
+	pcall(function() onrender:Disconnect() end)
+	pcall(function() inputbegan:Disconnect() end)
+	pcall(function() highlight:Destroy() end)
+	pcall(function() onplr:Disconnect() end)
 	daura = false
 	dauras = false
 	ors = false
-	daurapart:Destroy()
+	pcall(function() daurapart:Destroy() end)
 	for i,v in pairs(commands) do
 		v = false
 	end
 	pickuptools = false
 	autodroptools = false
-	onchradded:Disconnect()
 	dee2 = false
 	dee = false
 	spmbl = false
 	spmsi = false
 	if prttable then
 		for i,v in pairs(prttable) do
-			v:Destroy()
+			if v then v:Destroy() end
 		end
 	end
-	--writefile(savefile,http:JSONEncode(spamtxtssave))
 	wbs = false
 	if oldprt then
 		oldprt:Destroy()
 	end
-	sbox.Adornee = nil
-	sbox:Destroy()
-	bbsbox.Adornee = nil
-	bbsbox:Destroy()
+	pcall(function()
+		sbox.Adornee = nil
+		sbox:Destroy()
+	end)
+	pcall(function()
+		bbsbox.Adornee = nil
+		bbsbox:Destroy()
+	end)
 	for i,v in pairs(conn) do
-		v:Disconnect()
+		pcall(function() v:Disconnect() end)
 	end
 	for i,v in pairs(dheads) do
 		if v then
-			v:Destroy()
+			pcall(function() v:Destroy() end)
 		end
 	end
-	ssbox.Adornee = nil
-	ssbox:Destroy()
+	pcall(function()
+		ssbox.Adornee = nil
+		ssbox:Destroy()
+	end)
 	spmsb = false
 	ss = false
 	tp = false
-	onbrick:Disconnect()
-	buildhighlight:Destroy()
-	setTransformTabVisible(false)
-	destroyOffsetGizmo()
-	offsetpart:Destroy()
+	pcall(function() onbrick:Disconnect() end)
+	pcall(function() buildhighlight:Destroy() end)
+	pcall(function() setTransformTabVisible(false) end)
+	pcall(function() destroyOffsetGizmo() end)
 end
 end)
 if not success then print(err,"TCOExtrasError") end
