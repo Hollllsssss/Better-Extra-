@@ -73,49 +73,421 @@ function validate(name)
 	end
 	return name
 end
-local lib = loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Lib-18698"))()
+-- Fluent UI integration
+-- UI size: edit these two lines to resize the main window and the floating minimize icon.
+local UI_WIDTH = 680
+local UI_HEIGHT = 680
+local UI_ICON_SIZE = 56
+
+local Fluent = loadstring(game:HttpGet("https://github.com/StyearX/Fluent-Modded/releases/download/1.6.0/main.lua"))()
+local InterfaceManager = Fluent.InterfaceManager
+local SaveManager = Fluent.SaveManager
+local FloatingButtonManager = Fluent.FloatingButtonManager
+
+local Window = Fluent:CreateWindow({
+    Title = "The Chosen One EXTRAS (BY 2AREYOUMENTAL110)",
+    TabWidth = 140,
+    SubTitle = "Better Extra",
+    Acrylic = false, -- TEST: disable Acrylic to check Display Whole Build freezing
+    Size = UDim2.fromOffset(UI_WIDTH, UI_HEIGHT),
+    Theme = "Monochrome Noir",
+    Background = true,
+    TitleIcon = "rbxassetid://77838416429094",
+    Search = { Search = true, Highlight = true },
+    UserInfo = {
+        UserInfo = true,
+        UserInfoTitle = localplr.Name,
+        UserInfoSubtitle = localplr.DisplayName,
+    },
+    FolderName = "TheChosenOneExtras",
+    ScreenGuiName = "TheChosenOneExtras",
+})
+
+local Minimizer = Fluent:CreateMinimizer({
+    Icon = "rbxassetid://109639117875913",
+    Size = UDim2.fromOffset(UI_ICON_SIZE, UI_ICON_SIZE),
+    Position = UDim2.new(0.05, 0, 0.10, 0),
+    Corner = 12,
+    BackgroundTransparency = 0,
+    IconCorner = 6,
+    Transparency = 0,
+    Lockable = true,
+    LockHoldTime = 1.0,
+    Draggable = true,
+})
+Minimizer.Visible = true
+
+local function newFluentTab(title, icon, header)
+    local tab
+    if header then
+        tab = Window:AddTabsInHeader({Title = title, Icon = icon})
+    else
+        tab = Window:AddTab({Title = title, Icon = icon})
+    end
+    return tab
+end
+
+-- Compatibility adapter: Better Extra's existing UI calls remain unchanged below.
+local TCOE_INSTANCE_KEY = "__TCOE_BetterExtra_Instance"
+local lib = {}
+local scriptUnloading = false
+local tabSections = setmetatable({}, {__mode = "k"})
+local currentInstance
+local uiSizeOverrideConnection
+
+function lib.makelib(_)
+    local gui = {}
+    function gui:Destroy()
+        if scriptUnloading then return end
+        scriptUnloading = true
+        if lib.ondestroyedfunc then
+            pcall(lib.ondestroyedfunc)
+        end
+        pcall(function()
+            if Minimizer then Minimizer.Visible = false end
+        end)
+        pcall(function()
+            local cg = game:GetService("CoreGui")
+            local mg = cg:FindFirstChild("FluentMinimizerGui")
+            if mg then mg:Destroy() end
+        end)
+        pcall(function()
+            if uiSizeOverrideConnection then
+                uiSizeOverrideConnection:Disconnect()
+                uiSizeOverrideConnection = nil
+            end
+        end)
+        pcall(function() Window:Destroy() end)
+        pcall(function()
+            if getgenv()[TCOE_INSTANCE_KEY] == currentInstance then
+                getgenv()[TCOE_INSTANCE_KEY] = nil
+            end
+        end)
+    end
+    return gui
+end
+
 local libgui = lib.makelib("The Chosen One EXTRAS (BY 2AREYOUMENTAL110)")
-local Players = game:GetService("Players")
 
-local function isBlocked(player)
-    return player.UserId == 8615658150
+-- Single-instance guard: running a new copy cleans up the previous copy first.
+-- This uses getgenv(), which is already used by Better Extra, so no extra
+-- filesystem/remote state is needed.
+local previousInstance = getgenv()[TCOE_INSTANCE_KEY]
+if type(previousInstance) == "table" and type(previousInstance.Destroy) == "function" then
+    pcall(previousInstance.Destroy)
 end
 
-local function unloadScript()
-    -- below is an example on how it should be setup, Library:Unload is just an example, something PealLib uses, you will have to change this to whatever your script uses
-    libgui:Destroy()
+currentInstance = {
+    Destroyed = false,
+}
+function currentInstance:Destroy()
+    if self.Destroyed then return end
+    self.Destroyed = true
+    pcall(function()
+        if libgui then
+            libgui:Destroy()
+        end
+    end)
+end
+getgenv()[TCOE_INSTANCE_KEY] = currentInstance
+
+local function sectionFor(tab)
+    if tabSections[tab] then return tabSections[tab] end
+    local sec = tab:AddSection("The Chosen One EXTRAS", "solar/widget-bold")
+    tabSections[tab] = sec
+    return sec
 end
 
-for _, player in ipairs(Players:GetPlayers()) do
-    if isBlocked(player) then unloadScript() return end
+function lib.maketab(name)
+    local icon = "solar/widget-bold"
+    local n = tostring(name):lower()
+    if n == "build" then icon = "solar/hammer-bold"
+    elseif n == "tools" then icon = "solar/hand-shake-bold"
+    elseif n == "gears" then icon = "solar/settings-bold"
+    elseif n == "more scripts" then icon = "solar/code-bold"
+    elseif n == "build save/load" then icon = "solar/diskette-bold"
+    elseif n == "transform" then icon = "solar/transfer-horizontal-bold"
+    elseif n == "commands" then icon = "solar/command-bold"
+    elseif n == "moderation & management" then icon = "solar/shield-bold" end
+    return newFluentTab(name, icon, false)
 end
 
-Players.PlayerAdded:Connect(function(player)
-    if isBlocked(player) then unloadScript() end
-end)
+function lib.makelabel(text, tab)
+    return sectionFor(tab):AddParagraph({Title = tostring(text or ""), Content = ""})
+end
+
+function lib.makebutton(text, tab, callback)
+    return sectionFor(tab):AddButton({Title = tostring(text), Callback = callback})
+end
+
+function lib.maketoggle(text, tab, callback, default)
+    local id = "TCOE_" .. tostring(math.random(100000,999999))
+    return sectionFor(tab):AddToggle(id, {Title = tostring(text), Default = default == true, Callback = callback})
+end
+
+function lib.maketextbox(text, tab, callback)
+    local id = "TCOE_" .. tostring(math.random(100000,999999))
+    local input = sectionFor(tab):AddInput(id, {
+        Title = tostring(text),
+        Placeholder = tostring(text),
+        Default = "",
+        Callback = callback,
+    })
+    local proxy = {}
+    setmetatable(proxy, {
+        __index = function(_, key)
+            if key == "Text" then
+                return input.Value or ""
+            elseif key == "PlaceholderText" then
+                return input.Placeholder or ""
+            end
+            return input[key]
+        end,
+        __newindex = function(_, key, value)
+            if key == "Text" then
+                pcall(function() input:SetValue(tostring(value or "")) end)
+            elseif key == "PlaceholderText" then
+                pcall(function() input:SetPlaceholder(tostring(value or "")) end)
+            else
+                pcall(function() input[key] = value end)
+            end
+        end,
+    })
+    return proxy
+end
+
+function lib.makedropdown(text, tab, values, callback)
+    local id = "TCOE_" .. tostring(math.random(100000,999999))
+    return sectionFor(tab):AddDropdown(id, {
+        Title = tostring(text),
+        Values = values or {},
+        AllowNull = true,
+        Callback = callback,
+    })
+end
+
+function lib.updatedropdown(dropdown, values)
+    if dropdown and dropdown.SetValues then
+        dropdown:SetValues(values or {})
+    end
+end
+
+function lib.updatelabel(text, label)
+    if not label then return end
+    pcall(function()
+        if label.SetTitle then label:SetTitle(tostring(text)) return end
+        if label.Title then label.Title.Text = tostring(text) return end
+        if label.Container then
+            for _,v in ipairs(label.Container:GetDescendants()) do
+                if v:IsA("TextLabel") and v.Text ~= "" then
+                    v.Text = tostring(text)
+                    return
+                end
+            end
+        end
+    end)
+end
+
 local buildtab = lib.maketab("build")
 local tooltab = lib.maketab("tools")
 local geartab = lib.maketab("gears")
 local scripttab = lib.maketab("more scripts")
 local bsaltab = lib.maketab("build save/load")
 local transformtab = lib.maketab("Transform")
+local commandtab = lib.maketab("commands")
+local modtab = lib.maketab("moderation & management")
+
+-- Fluent's Configuration tab is preserved from the original Fluent example.
+local configurationtab = newFluentTab("Configuration", "settings", false)
+local visualtab = newFluentTab("Visual", "image", true)
+
+pcall(function()
+    InterfaceManager:SetLibrary(Fluent)
+    InterfaceManager:SetFolder("TheChosenOneExtras")
+    InterfaceManager:BuildInterfaceSection(configurationtab)
+    InterfaceManager:LoadSettings()
+end)
+pcall(function()
+    SaveManager:SetLibrary(Fluent)
+    SaveManager:SetFolder("TheChosenOneExtras/Config")
+    SaveManager:IgnoreThemeSettings()
+    SaveManager:BuildConfigSection(configurationtab)
+    SaveManager:LoadAutoloadConfig()
+end)
+pcall(function()
+    FloatingButtonManager:SetLibrary(Fluent)
+    FloatingButtonManager:SetFolder("TheChosenOneExtras/Floating")
+    FloatingButtonManager:BuildConfigSection(configurationtab)
+    FloatingButtonManager:LoadAutoloadConfig()
+end)
+
+local UnloadSection = configurationtab:AddSection("Script", "solar/power-bold")
+
+-- Runtime UI sizing controls.
+local uiWidthValue = UI_WIDTH
+local uiHeightValue = UI_HEIGHT
+local uiIconSizeValue = UI_ICON_SIZE
+
+local function applyUISizes()
+    uiWidthValue = math.clamp(math.floor(tonumber(uiWidthValue) or UI_WIDTH), 320, 1600)
+    uiHeightValue = math.clamp(math.floor(tonumber(uiHeightValue) or UI_HEIGHT), 280, 1200)
+    uiIconSizeValue = math.clamp(math.floor(tonumber(uiIconSizeValue) or UI_ICON_SIZE), 24, 160)
+
+    -- Fluent internally drives Window.Root.Size with a motor. Setting Root.Size
+    -- once is therefore overwritten on the next render step. Keep a small
+    -- override connection so Apply UI Size remains effective every time it is pressed.
+    pcall(function()
+        if uiSizeOverrideConnection then
+            uiSizeOverrideConnection:Disconnect()
+            uiSizeOverrideConnection = nil
+        end
+        if Window and Window.Root then
+            local desired = UDim2.fromOffset(uiWidthValue, uiHeightValue)
+            Window.Root.Size = desired
+            uiSizeOverrideConnection = game:GetService("RunService").RenderStepped:Connect(function()
+                if scriptUnloading or not Window or not Window.Root or not Window.Root.Parent then
+                    if uiSizeOverrideConnection then
+                        uiSizeOverrideConnection:Disconnect()
+                        uiSizeOverrideConnection = nil
+                    end
+                    return
+                end
+                if Window.Root.Size.X.Offset ~= uiWidthValue or Window.Root.Size.Y.Offset ~= uiHeightValue then
+                    Window.Root.Size = desired
+                end
+            end)
+        end
+    end)
+
+    -- Resize the floating minimizer created by Fluent.
+    pcall(function()
+        local cg = game:GetService("CoreGui")
+        local mg = cg:FindFirstChild("FluentMinimizerGui")
+        local btn = mg and mg:FindFirstChild("FluentMinimizerBtn", true)
+        if btn then
+            btn.Size = UDim2.fromOffset(uiIconSizeValue, uiIconSizeValue)
+            local img = btn:FindFirstChildWhichIsA("ImageLabel", true)
+            if img then
+                local pad = 6
+                img.Size = UDim2.new(1, -(pad * 2), 1, -(pad * 2))
+            end
+        end
+    end)
+end
+
+local function addSizeInput(section, id, title, defaultValue, setter)
+    return section:AddInput(id, {
+        Title = title,
+        Default = tostring(defaultValue),
+        Placeholder = tostring(defaultValue),
+        Numeric = true,
+        Finished = true,
+        Callback = function(value)
+            setter(tonumber(value) or defaultValue)
+        end,
+    })
+end
+
+local UISizeSection = configurationtab:AddSection("UI Size", "solar/ruler-pen-bold")
+
+addSizeInput(UISizeSection, "TCOE_UIWidth", "UI Width", uiWidthValue, function(v)
+    uiWidthValue = v
+end)
+
+addSizeInput(UISizeSection, "TCOE_UIHeight", "UI Height", uiHeightValue, function(v)
+    uiHeightValue = v
+end)
+
+addSizeInput(UISizeSection, "TCOE_IconSize", "Minimizer Icon Size", uiIconSizeValue, function(v)
+    uiIconSizeValue = v
+end)
+
+UISizeSection:AddButton({
+    Title = "Apply UI Size",
+    Description = "Apply the width, height and floating icon size.",
+    Icon = "solar/check-circle-bold",
+    Callback = applyUISizes,
+})
+
+UISizeSection:AddParagraph({
+    Title = "Current",
+    Content = "Window: " .. tostring(uiWidthValue) .. " × " .. tostring(uiHeightValue) ..
+        " | Icon: " .. tostring(uiIconSizeValue),
+})
+
+UnloadSection:AddButton({
+    Title = "Unload Script",
+    Description = "Stops Better Extra and removes its UI.",
+    Icon = "solar/close-circle-bold",
+    Callback = function()
+        libgui:Destroy()
+    end,
+})
+
+-- If the Fluent window is closed with its X button, treat that as a real unload too.
+pcall(function()
+    if Window.Root then
+        Window.Root.AncestryChanged:Connect(function(_, parent)
+            if not parent and not scriptUnloading then
+                libgui:Destroy()
+            end
+        end)
+    end
+end)
+
+-- Visual tab: keeps the Fluent visual controls while leaving Better Extra gameplay logic untouched.
+do
+    local sec = visualtab:AddSection("Interface Visuals", "solar/eye-bold")
+    local settings = InterfaceManager.Settings
+    local themes = Fluent.Themes or {}
+    local themeNames = {}
+    for name,_ in pairs(themes) do table.insert(themeNames, name) end
+    table.sort(themeNames)
+    if #themeNames > 0 then
+        sec:AddDropdown("TCOE_VisualTheme", {
+            Title = "Theme",
+            Values = themeNames,
+            Default = settings.Theme,
+            Callback = function(v)
+                if v then Fluent:SetTheme(v) end
+            end,
+        })
+    end
+    sec:AddToggle("TCOE_VisualAnimated", {
+        Title = "Animated Window",
+        Default = settings.Animated ~= false,
+        Callback = function(v) settings.Animated = v end,
+    })
+    sec:AddToggle("TCOE_VisualAcrylic", {
+        Title = "Acrylic",
+        Default = settings.Acrylic ~= false,
+        Callback = function(v) settings.Acrylic = v end,
+    })
+    sec:AddToggle("TCOE_VisualBackground", {
+        Title = "Background",
+        Default = not settings.DisableBG,
+        Callback = function(v) settings.DisableBG = not v end,
+    })
+    sec:AddToggle("TCOE_VisualTransparency", {
+        Title = "Transparency",
+        Default = settings.Transparency == true,
+        Callback = function(v) settings.Transparency = v end,
+    })
+    sec:AddParagraph({Title = "UI Size", Content = "UI size can be changed from Configuration → UI Size."})
+end
 
 -- Transform tab is only available while a whole-build preview exists.
 local function setTransformTabVisible(visible)
-	if not transformtab then return end
-	transformtab.Visible = visible
-	local parent = transformtab.Parent
-	if parent then
-		for _,child in ipairs(parent:GetChildren()) do
-			if child:IsA("TextButton") and child.Text == "Transform" then
-				child.Visible = visible
-			end
-		end
-	end
+    if not transformtab then return end
+    pcall(function()
+        if transformtab.Frame then transformtab.Frame.Visible = visible end
+    end)
+    pcall(function()
+        if transformtab.Button then transformtab.Button.Visible = visible end
+    end)
 end
 setTransformTabVisible(false)
-local commandtab = lib.maketab("commands")
-local modtab = lib.maketab("moderation & management")
+
 lib.makelabel("if you see normalxsx / btc_normalxsx / normalxsx_windows1 / A_Normalxsx / A_NormalxsxWindows1 that is also me",buildtab)
 lib.makelabel("\u{26A0}\u{FE0F} READ BELOW",buildtab)
 lib.makelabel("Roblox pushed a new update that makes you not able to send messages into System Chat (better than General chat for hiding messages)",buildtab)
@@ -235,6 +607,74 @@ function round(pos,m)
 	return Vector3.new(roundnum(pos.X,m or mult),roundnum(pos.Y,m or mult),roundnum(pos.Z,m or mult))
 end
 local wbs = false
+
+-- ===== Existing server-block blocker handler for current load ghost =====
+local function getGhostBlockers(ghost)
+    local blockers = {}
+    if not ghost or not ghost:IsA("BasePart") then return blockers end
+    local ghostCFrame = ghost.CFrame
+    local ghostSize = ghost.Size
+    local ghostParts = workspace.Bricks:GetDescendants()
+    for _,part in ipairs(ghostParts) do
+        if part:IsA("BasePart") and part ~= ghost and part.Parent then
+            local rel = ghostCFrame:ToObjectSpace(part.CFrame)
+            local rs = rel.Position
+            local ps = part.Size
+            local half = ghostSize/2
+            local phalf = ps/2
+            if math.abs(rs.X) < (half.X + phalf.X) and
+               math.abs(rs.Y) < (half.Y + phalf.Y) and
+               math.abs(rs.Z) < (half.Z + phalf.Z) and
+               part.CanCollide == true then
+                table.insert(blockers, part)
+            end
+        end
+    end
+    return blockers
+end
+
+local function makeBlockerNonCollidable(part)
+    if not part or not part.Parent or part.CanCollide == false then return true end
+    local paint = (localplr.Character and localplr.Character:FindFirstChild("Paint")) or (localplr.Backpack and localplr.Backpack:FindFirstChild("Paint"))
+    if not paint then return false end
+    local ok = pcall(function()
+        if not localplr.Character:FindFirstChild("Paint") then
+            paint.Parent = localplr.Character
+        end
+        if localplr.Character:FindFirstChild("Paint") then
+            local args = {
+                [1] = part,
+                [2] = Enum.NormalId.Top,
+                [3] = part.Position + part.Size/2,
+                [4] = "material",
+                [5] = nil,
+                [6] = "collide",
+                [7] = ""
+            }
+            local event = (localplr.Character.Paint:FindFirstChild("origevent") and localplr.Character.Paint.origevent:Invoke(unpack(args))) or localplr.Character.Paint.Script.Event:FireServer(unpack(args))
+            return true
+        end
+    end)
+    if not ok then return false end
+    local tries = 0
+    repeat
+        tries = tries + 1
+        task.wait(0.15)
+        if not part.Parent then return true end
+    until part.CanCollide == false or tries >= 12
+    return part.CanCollide == false
+end
+
+local function clearCurrentGhostBlockers()
+    if not oldprt or not oldprt.Parent then return true end
+    local blockers = getGhostBlockers(oldprt)
+    for _,part in ipairs(blockers) do
+        makeBlockerNonCollidable(part)
+    end
+    return true
+end
+-- ===== End existing server-block blocker handler =====
+
 function buildblock(pos,texture,color,bsize,bsizev3,premadebuild,origmaterial,sprays,anchored,collide)
 	task.wait(0.001)
 	if anchored == nil then
@@ -251,6 +691,11 @@ function buildblock(pos,texture,color,bsize,bsizev3,premadebuild,origmaterial,sp
 	local oo = false
 	local c = 0
 	childcube = nil
+	-- Before attempting to build/copy the current ghost block, clear any pre-existing
+	-- collidable server blocks whose volume overlaps this exact ghost.
+	if oldprt and oldprt.Parent then
+		clearCurrentGhostBlockers()
+	end
 	if #cubehistory > 0 and oldprt then
 		local allooslol = {}
 		for i,childcube2 in pairs(cubehistory) do
@@ -1688,10 +2133,24 @@ local function roundTransformNumber(n)
 	return math.round(n * 100) / 100
 end
 
+local updatingTransformFields = false
+
 local function updateTransformFields()
-	if positionBoxes.X then positionBoxes.X.Text=tostring(roundTransformNumber(gizmoOffset.X)) end
-	if positionBoxes.Y then positionBoxes.Y.Text=tostring(roundTransformNumber(gizmoOffset.Y)) end
-	if positionBoxes.Z then positionBoxes.Z.Text=tostring(roundTransformNumber(gizmoOffset.Z)) end
+	-- Guard against Fluent Input:SetValue() firing the textbox callback
+	-- while these fields are being updated programmatically.
+	if updatingTransformFields then return end
+	updatingTransformFields = true
+
+	local ok, err = pcall(function()
+		-- Show the build's actual world position, not the temporary offset.
+		local worldPosition = gizmoPivotCenter and (gizmoPivotCenter + gizmoOffset) or gizmoOffset
+		if positionBoxes.X then positionBoxes.X.Text=tostring(roundTransformNumber(worldPosition.X)) end
+		if positionBoxes.Y then positionBoxes.Y.Text=tostring(roundTransformNumber(worldPosition.Y)) end
+		if positionBoxes.Z then positionBoxes.Z.Text=tostring(roundTransformNumber(worldPosition.Z)) end
+	end)
+
+	updatingTransformFields = false
+	if not ok then warn("Better Extra Transform UI update error:", err) end
 end
 
 local function getPreviewCenter()
@@ -1728,9 +2187,14 @@ end
 local function setPositionAxis(axis,value)
 	value=tonumber(value)
 	if not value then return end
-	if axis=="X" then gizmoOffset=Vector3.new(value,gizmoOffset.Y,gizmoOffset.Z)
-	elseif axis=="Y" then gizmoOffset=Vector3.new(gizmoOffset.X,value,gizmoOffset.Z)
-	else gizmoOffset=Vector3.new(gizmoOffset.X,gizmoOffset.Y,value) end
+	-- The text fields are world coordinates. Convert them back into the
+	-- internal offset relative to the build's original world position.
+	local base = gizmoPivotCenter or Vector3.new(0,0,0)
+	local worldPosition = gizmoPivotCenter and (gizmoPivotCenter + gizmoOffset) or gizmoOffset
+	if axis=="X" then worldPosition=Vector3.new(value,worldPosition.Y,worldPosition.Z)
+	elseif axis=="Y" then worldPosition=Vector3.new(worldPosition.X,value,worldPosition.Z)
+	else worldPosition=Vector3.new(worldPosition.X,worldPosition.Y,value) end
+	gizmoOffset=worldPosition-base
 	applyPositionOffsetToPreview()
 	if offsetgizmo then createAxisGizmo() end
 end
@@ -1946,16 +2410,17 @@ lib.makebutton("Load Save",transformtab,function()
 	end
 end)
 
-lib.makelabel("Position Offset (studs)",transformtab)
+lib.makelabel("Position (World Coordinates)",transformtab)
 positionBoxes.X=lib.maketextbox("Position X",transformtab,function(txt) setPositionAxis("X",txt) end)
 positionBoxes.Y=lib.maketextbox("Position Y",transformtab,function(txt) setPositionAxis("Y",txt) end)
 positionBoxes.Z=lib.maketextbox("Position Z",transformtab,function(txt) setPositionAxis("Z",txt) end)
 lib.makebutton("Reset Position",transformtab,function()
+	-- Reset to the original saved world position.
 	gizmoOffset=Vector3.new(0,0,0)
 	applyPositionOffsetToPreview()
 	if prttable and #prttable>0 then createAxisGizmo() end
 end)
-lib.makelabel("Move with the XYZ gizmo or enter values above. Values are offsets from the original build.",transformtab)
+lib.makelabel("Move with the XYZ gizmo or enter the build position above. Reset returns to the original saved world position.",transformtab)
 
 lib.makebutton("Display Whole Build (might lag, only you see)",bsaltab,function()
 	if selectedbuild~=nil then
