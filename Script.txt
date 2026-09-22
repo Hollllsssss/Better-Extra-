@@ -249,11 +249,8 @@ function lib.maketab(name)
     return tab
 end
 
-function lib.makelabel(text, tab, content)
-    return sectionFor(tab):AddParagraph({
-        Title = tostring(text or ""),
-        Content = content and tostring(content) or "",
-    })
+function lib.makelabel(text, tab)
+    return sectionFor(tab):AddParagraph({Title = tostring(text or ""), Content = ""})
 end
 
 function lib.makebutton(text, tab, callback)
@@ -1073,7 +1070,7 @@ do
         Title = "Time (HH:MM)",
         Placeholder = "e.g. 14:30",
         Numeric = false,
-        Finished = false,
+        Finished = true,
         Callback = function(Value)
             SetTimeInput = Value
         end,
@@ -1258,8 +1255,8 @@ end
 local wbs = false
 
 -- Speed multipliers for collide + sign placement
-local COLLIDE_WAIT_MULT = 0.35
-local SIGN_WAIT_MULT    = 0.35
+local COLLIDE_WAIT_MULT = 1.0
+local SIGN_WAIT_MULT    = 1.0
 local function cwait(t) task.wait((t or 0.1) * COLLIDE_WAIT_MULT) end
 local function swait(t) task.wait((t or 0.1) * SIGN_WAIT_MULT) end
 
@@ -1828,60 +1825,36 @@ local function applySignColorMaterial(signPart, signData, materialsTable)
             wantMatName = materialsTable[mat]
         end
     end
-    if not wantColor and not wantMatName then return end
+    local colorSame = (not wantColor) or (wantColor == signPart.Color)
+    local matSame = (not wantMatName) or (materialsTable and materialsTable[signPart.Material] == wantMatName)
+    if colorSame and matSame then return end
 
     if localplr.Backpack:FindFirstChild("Paint") and localplr.Character then
         pcall(function() localplr.Backpack.Paint.Parent = localplr.Character end)
     end
-    if not (localplr.Character and localplr.Character:FindFirstChild("Paint")) then return end
+    local p = localplr.Character and localplr.Character:FindFirstChild("Paint")
+    if not p then return end
 
-    local faceName = signData.signFace or "Front"
-    local faceId   = Enum.NormalId[faceName] or Enum.NormalId.Front
-    local n        = FACE_NORMALS[faceName] or Vector3.new(0,0,-1)
-
-    local surfacePos = signPart.Position + Vector3.new(
-        n.X * signPart.Size.X / 2,
-        n.Y * signPart.Size.Y / 2,
-        n.Z * signPart.Size.Z / 2
-    )
-
-    local function firePaint(args)
-        pcall(function()
-            local p = localplr.Character.Paint
-            local ev = p:FindFirstChild("origevent")
-            if ev then ev:Invoke(unpack(args)); return end
-            local scr = p:FindFirstChild("Script")
-            if scr and scr:FindFirstChild("Event") then scr.Event:FireServer(unpack(args)) end
-        end)
+    local faceId = Enum.NormalId[signData.signFace or "Front"] or Enum.NormalId.Front
+    local mode, texArg
+    if wantColor and wantMatName then
+        mode = "both \u{1F91D}"
+        texArg = wantMatName
+    elseif wantColor then
+        mode = "color"
+        texArg = "tiles"
+    elseif wantMatName then
+        mode = "material"
+        texArg = wantMatName
     end
-
-    if wantColor and wantColor ~= signPart.Color then
-        local c = 0
-        repeat
-            c = c + 1
-            if localplr.Character and not localplr.Character:FindFirstChild("Paint")
-               and localplr.Backpack:FindFirstChild("Paint") then
-                localplr.Backpack.Paint.Parent = localplr.Character
-            end
-            firePaint({ signPart, faceId, surfacePos, "color", wantColor, "tiles", "" })
-            swait(0.3)
-        until not signPart.Parent or signPart.Color == wantColor or c > 20
-    end
-
-    if wantMatName and (not materialsTable or materialsTable[signPart.Material] ~= wantMatName) then
-        local c = 0
-        repeat
-            c = c + 1
-            if localplr.Character and not localplr.Character:FindFirstChild("Paint")
-               and localplr.Backpack:FindFirstChild("Paint") then
-                localplr.Backpack.Paint.Parent = localplr.Character
-            end
-            firePaint({ signPart, faceId, surfacePos, "material", nil, wantMatName, "" })
-            swait(0.3)
-        until not signPart.Parent
-              or (materialsTable and materialsTable[signPart.Material] == wantMatName)
-              or c > 20
-    end
+    local args = { signPart, faceId, signPart.Position, mode, wantColor, texArg, "" }
+    pcall(function()
+        local ev = p:FindFirstChild("origevent")
+        if ev then ev:Invoke(unpack(args)); return end
+        local scr = p:FindFirstChild("Script")
+        if scr and scr:FindFirstChild("Event") then scr.Event:FireServer(unpack(args)) end
+    end)
+    swait(0.4)
 end
 
 local function placeSign(signData, parentPart, materialsTable)
@@ -1967,7 +1940,7 @@ local function placeSign(signData, parentPart, materialsTable)
 		pcall(function()
 			tb.Text = tostring(text)
 			tb:CaptureFocus()
-			task.wait(0.15 * SIGN_WAIT_MULT)
+			task.wait(0.15)
 			tb:ReleaseFocus(true)
 		end)
 	end
@@ -2410,7 +2383,7 @@ filter.FilterType = Enum.RaycastFilterType.Include
 filter.MaxParts = 8
 filter:AddToFilter(workspace.Bricks)
 local daura = false
-lib.maketoggle("Delete Aura",buildtab,function(bool)
+lib.maketoggle("Old Delete Aura",buildtab,function(bool)
 	daura = bool
 	if daura then
 		daurapart.Transparency = 0.5
@@ -3126,8 +3099,6 @@ lib.makebutton("Load Save",bsaltab,function()
 		if v.isSign then table.insert(signParts, v) else table.insert(normalParts, v) end
 	end
 
-	normalParts = optimizeLoadOrder(normalParts)
-
 	bulkLoading = true
 	for _, v in ipairs(normalParts) do
 		if stopped then break end
@@ -3655,9 +3626,6 @@ lib.makebutton("Load Save",transformtab,function()
 	for _, v in ipairs(build) do
 		if v.isSign then table.insert(signParts, v) else table.insert(normalParts, v) end
 	end
-
-	normalParts = optimizeLoadOrder(normalParts)
-
 	bulkLoading = true
 	for _, v in ipairs(normalParts) do
 		if stopped then break end
@@ -4090,7 +4058,7 @@ lib.maketoggle("Don't equip enlighten when dropping tools (For auto drop)",toolt
 end,true)
 lib.maketoggle("Auto Drop Tools On Death",tooltab,function(bool)
 	autodroptools = bool
-end,true)
+end,false)
 lib.maketoggle("Auto Pickup Dropped Tools",tooltab,function(bool)
 	pickuptools = bool
 end,true)
@@ -4583,28 +4551,34 @@ lib.ondestroyedfunc = function()
 	pcall(function() buildhighlight:Destroy() end)
 	pcall(function() destroyOffsetGizmo() end)
 end
+print("[TCOE] Test 15 toggles - start")
 
 local anti = {
-    freeze=false, stun=false, glitch=false,
+    freeze=false, stun=false, glitch=false, fling=false,
     jail=false, invis=false,
     blind=false, toxify=false,
-     inventory=false, void=true, antideath=true
+     inventory=false, void=false, antideath=true
 }
-lib.makelabel("",modtab)
-lib.makelabel("Anti-* Features", modtab)
-lib.makelabel("Anti-Blur", modtab, "Auto active in [Visual] tab (I can't turn off T-T)")
-lib.makelabel("Anti-NoColor", modtab, "Auto active in [Visual] tab (I can't turn off T-T)")
-lib.makelabel("Anti-Fog", modtab, "Auto active in [Visual] tab (I can't turn off T-T)")
+
+lib.makelabel("Anti-* Features TEST", modtab)
 lib.maketoggle("Anti-Death", modtab, function(b) anti.antideath = b end, true)
 lib.maketoggle("Anti-Freeze", modtab, function(b) anti.freeze = b; print("freeze:",b) end, false)
 lib.maketoggle("Anti-Stun", modtab, function(b) anti.stun = b; print("stun:",b) end, false)
 lib.maketoggle("Anti-Glitch", modtab, function(b) anti.glitch = b; print("glitch:",b) end, false)
+lib.maketoggle("Anti-Fling", modtab, function(b) anti.fling = b; print("fling:",b) end, false)
 lib.maketoggle("Anti-Jail", modtab, function(b) anti.jail = b; print("jail:",b) end, false)
+lib.maketoggle("Anti-WalkSpeed Fix", modtab, function(b) anti.wsfix = b; print("wsfix:",b) end, false)
 lib.maketoggle("Anti-Invisible", modtab, function(b) anti.invis = b; print("invis:",b) end, false)
+lib.maketoggle("Anti-Afk", modtab, function(b) anti.afk = b; print("afk:",b) end, false)
 lib.maketoggle("Anti-Blind", modtab, function(b) anti.blind = b; print("blind:",b) end, false)
 lib.maketoggle("Anti-Toxify", modtab, function(b) anti.toxify = b; print("toxify:",b) end, false)
-lib.maketoggle("Anti-Vamp", modtab, function(b) anti.inventory = b; print("inventory:",b) end, false)
-lib.maketoggle("Anti-Void", modtab, function(b) anti.void = b; print("void:",b) end, true)
+lib.maketoggle("Anti-Blur", modtab, function(b) anti.blur = b; print("blur:",b) end, false)
+lib.maketoggle("Anti-NoColor", modtab, function(b) anti.nocolor = b; print("nocolor:",b) end, false)
+lib.maketoggle("Anti-Fog", modtab, function(b) anti.fog = b; print("fog:",b) end, false)
+lib.maketoggle("Anti-Inventory", modtab, function(b) anti.inventory = b; print("inventory:",b) end, false)
+lib.maketoggle("Anti-Void", modtab, function(b) anti.void = b; print("void:",b) end, false)
+
+print("[TCOE] Test 15 toggles - DONE")
 
 task.spawn(function()
     -- Anti-Void Stepped — chạy mỗi frame, ở TRƯỚC while
@@ -4634,19 +4608,12 @@ local function hookAntideath(character)
         local hum = character:WaitForChild("Humanoid", 10)
         if not hum then return end
         hum.Died:Connect(function()
-    if not anti.antideath then return end
-    -- Tìm trong Backpack trước
-    local arken = localplr.Backpack:FindFirstChild("The Arkenstone")
-        or character:FindFirstChild("The Arkenstone")
-    if not arken then return end
-    -- Nếu chưa cầm → equip
-    if arken.Parent ~= character then
-        pcall(function() arken.Parent = character end)
-        task.wait(0.05)
-    end
-    -- Chat
-    say("r6 me", "system")
-end)
+            if not anti.antideath then return end
+            local arken = localplr.Backpack:FindFirstChild("The Arkenstone")
+                or character:FindFirstChild("The Arkenstone")
+            if not arken then return end
+            say("r6 me", "system")
+        end)
     end)
 end
 if localplr.Character then hookAntideath(localplr.Character) end
@@ -4670,6 +4637,10 @@ localplr.CharacterAdded:Connect(hookAntideath)
                 hum.PlatformStand = false
             end
             if anti.glitch and hrp and math.abs(hrp.Position.Y) > 500000 then
+                hrp.AssemblyLinearVelocity = Vector3.new(0,0,0)
+                char:PivotTo(CFrame.new(0,200,0))
+            end
+            if anti.fling and hrp and (math.abs(hrp.Position.X) > 10000 or math.abs(hrp.Position.Z) > 10000) then
                 hrp.AssemblyLinearVelocity = Vector3.new(0,0,0)
                 char:PivotTo(CFrame.new(0,200,0))
             end
@@ -4757,6 +4728,8 @@ end
         end)
     end
 end)
+
+print("[TCOE] loop started")
 
 end)
 if not success then print(err,"TCOExtrasError") end
