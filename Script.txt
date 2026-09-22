@@ -394,7 +394,7 @@ do
     })
     cs:AddParagraph({
         Title = "Owner",
-        Content = "Better Extra Stuff | Hollis",
+        Content = "Better Extra Stuff | Hollis (@hollis_o)",
     })
     cs:AddDivider()
     cs:AddParagraph({
