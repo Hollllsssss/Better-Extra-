@@ -803,23 +803,26 @@ do
     local colCC = SecLighting:AddCollapsibleSection("Color Correction", "solar/eye-bold", false)
 
     colCC:AddToggle("CCEnabled", {
-        Title = "Enable Color Correction",
-        Default = LC.CcEnabled,
-        Callback = function(v)
-            LC.CcEnabled = v
-            local cc = Lighting:FindFirstChildOfClass("ColorCorrectionEffect")
-            if v then
-                if not cc then
-                    cc = Instance.new("ColorCorrectionEffect")
-                    cc.Name = "ColorCorrectionEffect"
-                    cc.Parent = Lighting
-                end
-                cc.TintColor = LC.CcTintColor
-            else
-                if cc then cc:Destroy() end
+    Title = "Enable Color Correction",
+    Default = LC.CcEnabled,
+    Callback = function(v)
+        LC.CcEnabled = v
+        local cc = Lighting:FindFirstChildOfClass("ColorCorrectionEffect")
+        if v then
+            if not cc then
+                cc = Instance.new("ColorCorrectionEffect")
+                cc.Name = "ColorCorrectionEffect"
+                cc.Parent = Lighting
             end
-        end,
-    })
+            cc.TintColor  = LC.CcTintColor
+            cc.Brightness = LC.CcBrightness
+            cc.Contrast   = LC.CcContrast
+            cc.Saturation = LC.CcSaturation
+        else
+            if cc then cc:Destroy() end
+        end
+    end,
+})
     colCC:AddSlider("CCBrightness", {
         Title = "Brightness",
         Min = -1, Max = 1, Default = LC.CcBrightness, Rounding = 2,
@@ -862,22 +865,25 @@ do
     local colBloom = SecLighting:AddCollapsibleSection("Bloom", "solar/star-shine-bold", false)
 
     colBloom:AddToggle("BloomEnabled", {
-        Title = "Enable Bloom",
-        Default = LC.BloomEnabled,
-        Callback = function(v)
-            LC.BloomEnabled = v
-            local bl = Lighting:FindFirstChildOfClass("BloomEffect")
-            if v then
-                if not bl then
-                    bl = Instance.new("BloomEffect")
-                    bl.Name = "BloomEffect"
-                    bl.Parent = Lighting
-                end
-            else
-                if bl then bl:Destroy() end
+    Title = "Enable Bloom",
+    Default = LC.BloomEnabled,
+    Callback = function(v)
+        LC.BloomEnabled = v
+        local bl = Lighting:FindFirstChildOfClass("BloomEffect")
+        if v then
+            if not bl then
+                bl = Instance.new("BloomEffect")
+                bl.Name = "BloomEffect"
+                bl.Parent = Lighting
             end
-        end,
-    })
+            bl.Intensity = LC.BloomIntensity
+            bl.Size      = LC.BloomSize
+            bl.Threshold = LC.BloomThreshold
+        else
+            if bl then bl:Destroy() end
+        end
+    end,
+})
     colBloom:AddSlider("BloomIntensity", {
         Title = "Intensity",
         Min = 0, Max = 1, Default = LC.BloomIntensity, Rounding = 2,
@@ -911,24 +917,26 @@ do
     local colClouds = SecLighting:AddCollapsibleSection("Clouds", "solar/clouds-bold", false)
 
     colClouds:AddToggle("CloudsEnabled", {
-        Title = "Enable Clouds",
-        Default = LC.CloudsEnabled,
-        Callback = function(v)
-            LC.CloudsEnabled = v
-            local terrain = workspace:FindFirstChildOfClass("Terrain")
-            if not terrain then return end
-            local clouds = terrain:FindFirstChildOfClass("Clouds")
-            if v then
-                if not clouds then
-                    clouds = Instance.new("Clouds")
-                    clouds.Parent = terrain
-                end
-                clouds.Color = LC.CloudsColor
-            else
-                if clouds then clouds:Destroy() end
+    Title = "Enable Clouds",
+    Default = LC.CloudsEnabled,
+    Callback = function(v)
+        LC.CloudsEnabled = v
+        local terrain = workspace:FindFirstChildOfClass("Terrain")
+        if not terrain then return end
+        local clouds = terrain:FindFirstChildOfClass("Clouds")
+        if v then
+            if not clouds then
+                clouds = Instance.new("Clouds")
+                clouds.Parent = terrain
             end
-        end,
-    })
+            clouds.Color   = LC.CloudsColor
+            clouds.Density = LC.CloudsDensity
+            clouds.Cover   = LC.CloudsCover
+        else
+            if clouds then clouds:Destroy() end
+        end
+    end,
+})
     colClouds:AddSlider("CloudsDensity", {
         Title = "Density",
         Min = 0, Max = 1, Default = LC.CloudsDensity, Rounding = 2,
@@ -968,22 +976,23 @@ do
     local colBlur = SecLighting:AddCollapsibleSection("Blur", "solar/layers-minimalistic-bold", false)
 
     colBlur:AddToggle("BlurEnabled", {
-        Title = "Enable Blur",
-        Default = LC.BlurEnabled,
-        Callback = function(v)
-            LC.BlurEnabled = v
-            local blur = Lighting:FindFirstChildOfClass("BlurEffect")
-            if v then
-                if not blur then
-                    blur = Instance.new("BlurEffect")
-                    blur.Name = "BlurEffect"
-                    blur.Parent = Lighting
-                end
-            else
-                if blur then blur:Destroy() end
+    Title = "Enable Blur",
+    Default = LC.BlurEnabled,
+    Callback = function(v)
+        LC.BlurEnabled = v
+        local blur = Lighting:FindFirstChildOfClass("BlurEffect")
+        if v then
+            if not blur then
+                blur = Instance.new("BlurEffect")
+                blur.Name = "BlurEffect"
+                blur.Parent = Lighting
             end
-        end,
-    })
+            blur.Size = LC.BlurSize
+        else
+            if blur then blur:Destroy() end
+        end
+    end,
+})
     colBlur:AddSlider("BlurSize", {
         Title = "Size",
         Min = 0, Max = 56, Default = LC.BlurSize, Rounding = 0,
@@ -999,19 +1008,23 @@ do
     local colDoF = SecLighting:AddCollapsibleSection("Depth Of Field", "solar/camera-bold", false)
 
     colDoF:AddToggle("DoFEnabled", {
-        Title = "Enable Depth Of Field",
-        Default = LC.DofEnabled,
-        Callback = function(v)
-            LC.DofEnabled = v
-            local cam = workspace.CurrentCamera
-            local dof = cam:FindFirstChildOfClass("DepthOfFieldEffect")
-            if v then
-                GetOrCreateDoF()
-            else
-                if dof then dof:Destroy() end
-            end
-        end,
-    })
+    Title = "Enable Depth Of Field",
+    Default = LC.DofEnabled,
+    Callback = function(v)
+        LC.DofEnabled = v
+        local cam = workspace.CurrentCamera
+        local dof = cam:FindFirstChildOfClass("DepthOfFieldEffect")
+        if v then
+            dof = GetOrCreateDoF()
+            dof.FocusDistance = LC.DofFocusDistance
+            dof.InFocusRadius = LC.DofInFocusRadius
+            dof.NearIntensity = LC.DofNearIntensity
+            dof.FarIntensity  = LC.DofFarIntensity
+        else
+            if dof then dof:Destroy() end
+        end
+    end,
+})
     colDoF:AddSlider("DoFFocusDistance", {
         Title = "Focus Distance",
         Min = 0, Max = 150, Default = LC.DofFocusDistance, Rounding = 0,
@@ -1050,6 +1063,47 @@ do
     })
 
     SecLighting:AddSpace({ Height = 15 })
+    
+    local colFog = SecLighting:AddCollapsibleSection("Fog", "solar/sun-fog-bold", false)
+
+colFog:AddToggle("FogEnabled", {
+    Title = "Enable Fog",
+    Default = false,
+    Callback = function(v)
+        if v then
+            Lighting.FogStart = 0
+            Lighting.FogEnd   = 500
+            Lighting.FogColor = Color3.fromRGB(192, 192, 192)
+        else
+            Lighting.FogStart = 0
+            Lighting.FogEnd   = 100000
+        end
+    end,
+})
+
+colFog:AddSlider("FogStart", {
+    Title = "Fog Start",
+    Min = 0, Max = 2000, Default = 0, Rounding = 0,
+    Callback = function(v)
+        Lighting.FogStart = v
+    end,
+})
+
+colFog:AddSlider("FogEnd", {
+    Title = "Fog End",
+    Min = 0, Max = 5000, Default = 500, Rounding = 0,
+    Callback = function(v)
+        Lighting.FogEnd = v
+    end,
+})
+
+colFog:AddColorpicker("FogColor", {
+    Title = "Fog Color",
+    Default = Color3.fromRGB(192, 192, 192),
+    Callback = function(v)
+        Lighting.FogColor = v
+    end,
+})
 
     local SecSetTime = visualtab:AddSection("Set Time", "solar/clock-circle-bold")
     SecSetTime:AddSpace({ Height = 15 })
@@ -3216,7 +3270,6 @@ lib.makebutton("Display Whole Build (might lag, only you see)",bsaltab,function(
 	if selectedbuild~=nil then
 		local build=getbuild()
 		if build then
-			gizmoOffset=Vector3.new(0,0,0)
 			if prttable then for _,v in pairs(prttable) do if v then v:Destroy() end end end
 			previewBaseCFrames={}
 			gizmoPivotCenter=nil
@@ -3264,11 +3317,10 @@ lib.makebutton("Display Whole Build (might lag, only you see)",bsaltab,function(
 end)
 
 lib.makebutton("Delete build display (might lag, only you see)",bsaltab,function()
-	gizmoOffset=Vector3.new(0,0,0)
-	gizmoPivotCenter=nil
-	previewBaseCFrames={}
 	if prttable then for _,v in pairs(prttable) do if v then v:Destroy() end end; prttable=nil end
 	destroyOffsetGizmo()
+	gizmoPivotCenter=nil
+	previewBaseCFrames={}
 	updateTransformFields()
 end)
 
@@ -4592,9 +4644,9 @@ local anti = {
 }
 lib.makelabel("",modtab)
 lib.makelabel("Anti-* Features", modtab)
-lib.makelabel("Anti-Blur", modtab, "Auto active in [Visual] tab (I can't turn off T-T)")
-lib.makelabel("Anti-NoColor", modtab, "Auto active in [Visual] tab (I can't turn off T-T)")
-lib.makelabel("Anti-Fog", modtab, "Auto active in [Visual] tab (I can't turn off T-T)")
+lib.makelabel("Anti-Blur", modtab, "Auto active in [Visual] tab")
+lib.makelabel("Anti-NoColor", modtab, "Auto active in [Visual] tab")
+lib.makelabel("Anti-Fog", modtab, "Auto active in [Visual] tab")
 lib.maketoggle("Anti-Death", modtab, function(b) anti.antideath = b end, true)
 lib.maketoggle("Anti-Freeze", modtab, function(b) anti.freeze = b; print("freeze:",b) end, false)
 lib.maketoggle("Anti-Stun", modtab, function(b) anti.stun = b; print("stun:",b) end, false)
@@ -4605,6 +4657,28 @@ lib.maketoggle("Anti-Blind", modtab, function(b) anti.blind = b; print("blind:",
 lib.maketoggle("Anti-Toxify", modtab, function(b) anti.toxify = b; print("toxify:",b) end, false)
 lib.maketoggle("Anti-Vamp", modtab, function(b) anti.inventory = b; print("inventory:",b) end, false)
 lib.maketoggle("Anti-Void", modtab, function(b) anti.void = b; print("void:",b) end, true)
+
+lib.maketoggle("Anti-Crash/clones", modtab, (function()
+	local conn = nil
+	local function remove(obj)
+		if not obj or not obj.Parent then return end
+		local n = obj.Name:lower()
+		if n == "clone" or n == "clonecharacter" or n:find("clone", 1, true) then
+			pcall(function() obj:Destroy() end)
+		end
+	end
+	return function(state)
+		if state then
+			for _, obj in ipairs(workspace:GetDescendants()) do remove(obj) end
+			if conn then conn:Disconnect() end
+			conn = workspace.DescendantAdded:Connect(remove)
+			notify("Anti-Crash/clones", "Enabled")
+		else
+			if conn then conn:Disconnect(); conn = nil end
+			notify("Anti-Crash/clones", "Disabled")
+		end
+	end
+end)(), false, "Credits to me_meymeyme")
 
 task.spawn(function()
     -- Anti-Void Stepped — chạy mỗi frame, ở TRƯỚC while
