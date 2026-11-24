@@ -1,10 +1,3 @@
-
-
-
-
-
-
-
 warn("[TCOE-DIAG] v0.2.3: script entry reached")
 local success,err = pcall(function()
 warn("[TCOE-DIAG] v0.2.3: main pcall entered")
@@ -3029,7 +3022,7 @@ local function scanPlayerBuilds()
 		refreshplrhighlight()
 	end
 end
-plrlist = lib.makeplayerlist("Players With Builds (scan every 5s)",bsaltab,function(key)
+plrlist = lib.makeplayerlist("Players Bricks",bsaltab,function(key)
 	plrbuild = key and workspace.Bricks:FindFirstChild(key) or nil
 	refreshplrhighlight()
 end)
@@ -4190,7 +4183,7 @@ lib.maketoggle("SPY CHAT",modtab,function(bool)
 end,true)
 lib.setpage(modtab, "Player & Chat", "Arkenstone Holders")
 do -- scoped: keeps the list locals out of the main chunk's 200-local limit
-	local arkList = lib.makeplayerlist("Players holding The Arkenstone", modtab, nil, {EmptyText = "Nobody has The Arkenstone"})
+	local arkList = lib.makeplayerlist("Enlightened Players", modtab, nil, {EmptyText = "Nobody has The Arkenstone"})
 	if arkList then
 		local function scanArkenstone()
 			local entries = {}
@@ -4622,8 +4615,7 @@ end
 lib.makelabel("",modtab)
 lib.setpage(modtab, "Protection", "Character Protections")
 lib.maketoggle("Anti Death", modtab, function(b) anti.antideath = b end, true)
-lib.maketoggle("Anti Void", modtab, function(b) anti.void = b end, true,
-    "Teleports you to (0, 200, 0) when you fall into the void.")
+lib.maketoggle("Anti Void", modtab, function(b) anti.void = b end, true)
 lib.maketoggle("Anti Glitch", modtab, function(b) anti.glitch = b; print("glitch:",b) end, false)
 lib.maketoggle("Anti Freeze", modtab, function(b) anti.freeze = b; print("freeze:",b) end, false)
 lib.maketoggle("Anti Stun", modtab, function(b) anti.stun = b; print("stun:",b) end, false)
@@ -4641,7 +4633,7 @@ lib.maketoggle("Anti Noclip", modtab, function(b)
         end
         antiCollisionSaved = setmetatable({}, {__mode = "k"})
     end
-end, false, "Changes NoClip collision groups on your character back to Default.")
+end, false, "False clip")
 do -- scoped: Anti Fling keeps its locals out of the main chunk's 200-local limit
     local flingConn = nil
     local changed = setmetatable({}, {__mode = "k"})
@@ -4671,7 +4663,7 @@ do -- scoped: Anti Fling keeps its locals out of the main chunk's 200-local limi
         else
             restoreCollisions()
         end
-    end, false, "Turns off collision between you and other players.")
+    end, false)
 end
 do -- scoped: Anti Toxic (disables touch on bricks + your character so kill/toxic bricks cannot trigger)
     local changed = setmetatable({}, {__mode = "k"})
@@ -4727,12 +4719,10 @@ end)
 lib.setpage(modtab, "Protection", "Screen & Camera Protections")
 lib.maketoggle("Anti Vamp", modtab, function(b) anti.inventory = b; print("inventory:",b) end, false)
 lib.maketoggle("Anti Blind", modtab, function(b) anti.blind = b; print("blind:",b) end, false)
-lib.maketoggle("Anti Blur", modtab, function(b) anti.blur = b end, false,
-    "Disables Lighting.Blur while enabled.")
-lib.maketoggle("Anti Colorless", modtab, function(b) anti.colorless = b end, false,
-    "Disables Lighting.RGB while enabled.")
+lib.maketoggle("Anti Blur", modtab, function(b) anti.blur = b end, false)
+lib.maketoggle("Anti Colorless", modtab, function(b) anti.colorless = b end, false)
 lib.maketoggle("Anti Fog", modtab, function(b) anti.fog = b end, false,
-    "Sets Lighting.Fog.Density to 0 while enabled.")
+    "Sets Fog 0")
 
 
 task.spawn(function()
