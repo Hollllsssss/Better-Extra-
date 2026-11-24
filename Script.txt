@@ -1,11 +1,13 @@
--- QR Code Library Credits
 
---- The qrcode library is licensed under the 3-clause BSD license (aka "new BSD")
---- To get in contact with the author, mail to <gundlach@speedata.de>.
--- Copyright (c) 2012-2020, Patrick Gundlach and contributors, see https://github.com/speedata/luaqrcode
--- All rights reserved.
--- more features will be added soon
+
+
+
+
+
+
+warn("[TCOE-DIAG] v0.2.3: script entry reached")
 local success,err = pcall(function()
+warn("[TCOE-DIAG] v0.2.3: main pcall entered")
 getgenv().deletewhendupefound = true
 local localplr = game.Players.LocalPlayer
 local mult = 4
@@ -96,67 +98,701 @@ local function safeLoad(url, name)
     return res
 end
 
-local Fluent = safeLoad("https://github.com/StyearX/Fluent-Modded/releases/download/1.6.0/main.lua", "Fluent-Modded")
-if not Fluent then
-    error("[TCOE] Cannot load Fluent-Modded, aborting.")
-end
-local InterfaceManager = Fluent.InterfaceManager
-local SaveManager = Fluent.SaveManager
-local FloatingButtonManager = Fluent.FloatingButtonManager
-
-local Window = Fluent:CreateWindow({
-    Title = " Better EXTRA Stuff (BY HOLLIS)",
-    TabWidth = 140,
-    SubTitle = "Better Extra",
-    Acrylic = false,
-    Size = UDim2.fromOffset(UI_WIDTH, UI_HEIGHT),
-    Theme = "Monochrome Noir",
-    Background = true,
-    TitleIcon = "rbxassetid://77838416429094",
-    Search = { Search = true, Highlight = true },
-    UserInfo = {
-        UserInfo = true,
-        UserInfoTitle = localplr.Name,
-        UserInfoSubtitle = localplr.DisplayName,
-    },
-      Tags = {
-        { Text = "Hello " .. tostring(localplr.DisplayName), Color = Color3.fromRGB(180, 180, 200) },
-    },    
-    FolderName = "BetterTCOExtra",
-    ScreenGuiName = "BetterTCOExtra",
-})
-
-local Minimizer = Fluent:CreateMinimizer({
-    Icon = "rbxassetid://109639117875913",
-    Size = UDim2.fromOffset(UI_ICON_SIZE, UI_ICON_SIZE),
-    Position = UDim2.new(0.05, 0, 0.10, 0),
-    Corner = 12,
-    BackgroundTransparency = 0,
-    IconCorner = 6,
-    Transparency = 0,
-    Lockable = true,
-    LockHoldTime = 1.0,
-    Draggable = true,
-})
-Minimizer.Visible = true
-
-local function newFluentTab(title, icon, header)
-    local tab
-    if header then
-        tab = Window:AddTabsInHeader({Title = title, Icon = icon})
-    else
-        tab = Window:AddTab({Title = title, Icon = icon})
+local function loadZyronX()
+    local url = "https://pastefy.app/PcHrq47J/raw"
+    local ok, source = pcall(game.HttpGet, game, url)
+    if not ok or type(source) ~= "string" or source == "" then
+        warn("[TCOE] Could not download ZyronX UI Library: " .. tostring(source))
+        return nil
     end
-    return tab
+
+    local function replaceOnce(findText, replaceText, label)
+        local startAt = string.find(source, findText, 1, true)
+        if not startAt then
+            warn("[TCOE] ZyronX compatibility patch failed: " .. label)
+            return false
+        end
+        source = string.sub(source, 1, startAt - 1) .. replaceText .. string.sub(source, startAt + #findText)
+        return true
+    end
+
+    local okPatch = true
+    okPatch = replaceOnce(
+        "                    BuildActionButton(name, infoData, function(anchor)",
+        "                    return BuildActionButton(name, infoData, function(anchor)",
+        "button return value"
+    ) and okPatch
+
+    okPatch = replaceOnce(
+        "                    for index, option in ipairs(options) do",
+        "                    local function RebuildOptionRows()\n                        for _, row in ipairs(optionRows) do\n                            if row.Button then row.Button:Destroy() end\n                        end\n                        for i = #optionRows, 1, -1 do optionRows[i] = nil end\n                        for index, option in ipairs(options) do",
+        "dropdown row builder start"
+    ) and okPatch
+
+    okPatch = replaceOnce(
+        "                    end\n\n                    UpdateText()\n                    UpdateSelectionVisuals()",
+        "                        end\n                    end\n                    RebuildOptionRows()\n                    local function FixOptionCount() pcall(function() for _, d in ipairs(DropFrame:GetDescendants()) do if d:IsA(\"TextLabel\") then local inRow = false for _, row in ipairs(optionRows) do if row.Button and d:IsDescendantOf(row.Button) then inRow = true break end end if not inRow then local t = d.Text if t:match(\"^%(%d+%)$\") or t:match(\"^%d+ [Oo]ptions?$\") or t:match(\"^%d+ [Ii]tems?$\") or t:match(\"^[Oo]ptions?%s*[:%(]%s*%d+%)?$\") then d.Text = (t:gsub(\"%d+\", tostring(#options), 1)) end end end end end) end\n                    FixOptionCount()\n                    task.defer(FixOptionCount)\n                    task.delay(0.25, FixOptionCount)\n\n                    local function SetOptions(newOptions)\n                        if type(newOptions) ~= \"table\" then newOptions = {} end\n                        for i = #options, 1, -1 do options[i] = nil end\n                        for i, option in ipairs(newOptions) do options[i] = option end\n                        if isMulti then\n                            local valid = {}\n                            for _, value in ipairs(selected) do\n                                local found = FindValidOption(value)\n                                if found ~= nil then valid[#valid + 1] = found end\n                            end\n                            selected = valid\n                        elseif selected ~= nil and FindValidOption(selected) == nil then\n                            selected = nil\n                        end\n                        listHeight = math.min(#options, widened and EXPANDED_ROWS or COLLAPSED_ROWS) * rowHeight\n                        RebuildOptionRows()\n                        UpdateText()\n                        UpdateSelectionVisuals()\n                        RefreshListMetrics(true)\n                        refreshFade()\n                        FixOptionCount()\n                        task.defer(FixOptionCount)\n                    end\n\n                    UpdateText()\n                    UpdateSelectionVisuals()",
+        "dropdown options refresh"
+    ) and okPatch
+
+    okPatch = replaceOnce(
+        "                    return InternalSet, function() return selected end, function() return DropFrame end",
+        "                    return InternalSet, function() return selected end, function() return DropFrame end, SetOptions",
+        "dropdown SetOptions return"
+    ) and okPatch
+
+    okPatch = replaceOnce(
+        "                    local internalSet, getSelected = BuildDropdownUi(name, options, isMulti, nil, callback, infoData, false)",
+        "                    local internalSet, getSelected, _, setOptions = BuildDropdownUi(name, options, isMulti, nil, callback, infoData, false)",
+        "dropdown controller capture"
+    ) and okPatch
+
+    okPatch = replaceOnce(
+        "                        Set = internalSet, Get = getSelected,\n                        Default = type(selectedDefault) == \"table\" and SafeClone(selectedDefault) or selectedDefault,",
+        "                        Set = internalSet, Get = getSelected, SetOptions = setOptions,\n                        Default = type(selectedDefault) == \"table\" and SafeClone(selectedDefault) or selectedDefault,",
+        "dropdown config registration"
+    ) and okPatch
+
+    okPatch = replaceOnce(
+        "                    }\n                end\n\n                -- ------------------------------------------------------------\n                -- MultiSelect Dropdown",
+        "                    }\n                    return { Set = internalSet, Get = getSelected, SetOptions = setOptions }\n                end\n\n                -- ------------------------------------------------------------\n                -- MultiSelect Dropdown",
+        "dropdown controller return"
+    ) and okPatch
+
+
+    okPatch = replaceOnce(
+        "        _active = true, _isMinimized = false, _isExiting = false\n    }\n\n    local sphereOriginalColor = BackgroundColor",
+        "        _active = true, _isMinimized = false, _isExiting = false\n    }\n    function Window:Destroy()\n        self._active = false\n        pcall(function()\n            if self._cancelActiveKeybind then self._cancelActiveKeybind() end\n        end)\n        pcall(function()\n            if ScreenGui and ScreenGui.Parent then ScreenGui:Destroy() end\n        end)\n    end\n\n    local sphereOriginalColor = BackgroundColor",
+        "window destroy method"
+    ) and okPatch
+
+    okPatch = replaceOnce(
+        'Create("TextLabel",{Parent=TogFrame,Text=name,Font=Enum.Font.GothamBold',
+        'Create("TextLabel",{Parent=TogFrame,Text=(type(infoData)=="table" and infoData.Title) or name,Font=Enum.Font.GothamBold',
+        "toggle display title"
+    ) and okPatch
+
+    okPatch = replaceOnce(
+        'Create("TextLabel",{Parent=TxtFrame,Text=name,Font=Enum.Font.GothamBold',
+        'Create("TextLabel",{Parent=TxtFrame,Text=(type(infoData)=="table" and infoData.Title) or name,Font=Enum.Font.GothamBold',
+        "textbox display title"
+    ) and okPatch
+
+    okPatch = replaceOnce(
+        'Create("TextLabel",{Parent=SliFrame,Text=name,Font=Enum.Font.GothamBold',
+        'Create("TextLabel",{Parent=SliFrame,Text=(type(infoData)=="table" and infoData.Title) or name,Font=Enum.Font.GothamBold',
+        "slider display title"
+    ) and okPatch
+
+    okPatch = replaceOnce(
+        'Create("TextLabel",{Parent=KFrame,Text=name,Font=Enum.Font.GothamBold',
+        'Create("TextLabel",{Parent=KFrame,Text=(type(infoData)=="table" and infoData.Title) or name,Font=Enum.Font.GothamBold',
+        "keybind display title"
+    ) and okPatch
+
+    okPatch = replaceOnce(
+        'Parent = DropFrame, Text = tostring(name), Font = Enum.Font.GothamBold',
+        'Parent = DropFrame, Text = (type(infoData)=="table" and infoData.Title) or tostring(name), Font = Enum.Font.GothamBold',
+        "dropdown display title"
+    ) and okPatch
+
+    okPatch = replaceOnce(
+        'MeasureTitleWidth(tostring(name))',
+        'MeasureTitleWidth((type(infoData)=="table" and infoData.Title) or tostring(name))',
+        "dropdown title width"
+    ) and okPatch
+
+    okPatch = replaceOnce(
+        'MeasureTitleWidth(name)',
+        'MeasureTitleWidth((type(infoData)=="table" and infoData.Title) or tostring(name))',
+        "toggle info title width"
+    ) and okPatch
+
+    okPatch = replaceOnce(
+        'MeasureTitleWidth(name)',
+        'MeasureTitleWidth((type(infoData)=="table" and infoData.Title) or tostring(name))',
+        "slider info title width"
+    ) and okPatch
+
+    okPatch = replaceOnce(
+        'MeasureTitleWidth(name)',
+        'MeasureTitleWidth((type(infoData)=="table" and infoData.Title) or tostring(name))',
+        "keybind info title width"
+    ) and okPatch
+
+    okPatch = replaceOnce(
+        'MeasureTitleWidth(name)',
+        'MeasureTitleWidth((type(infoData)=="table" and infoData.Title) or tostring(name))',
+        "textbox info title width"
+    ) and okPatch
+
+    okPatch = replaceOnce(
+        "                function Elements:AddToggle(name, default, callback, infoData)",
+        [[                function Elements:AddResizeStatsCard()
+                    local card = Create("Frame", {
+                        Parent = ItemContainer, BackgroundColor3 = Color3.fromRGB(27, 25, 42),
+                        BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 112),
+                        LayoutOrder = #ItemContainer:GetChildren() + 1,
+                    })
+                    Create("UICorner", { Parent = card, CornerRadius = UDim.new(0, 10) })
+                    Create("UIStroke", { Parent = card, Color = Color3.fromRGB(58, 54, 82), Thickness = 1, Transparency = 0.2 })
+                    Create("TextLabel", { Parent = card, Text = "RESIZE LIVE", Font = Enum.Font.GothamBold,
+                        TextSize = 9, TextColor3 = SubTextColor, BackgroundTransparency = 1,
+                        Size = UDim2.new(1, -24, 0, 14), Position = UDim2.new(0, 12, 0, 9),
+                        TextXAlignment = Enum.TextXAlignment.Left })
+                    local pingValue = Create("TextLabel", { Parent = card, Text = "---", Font = Enum.Font.GothamBlack,
+                        TextSize = 22, TextColor3 = TextColor, BackgroundTransparency = 1,
+                        Size = UDim2.new(0.48, -12, 0, 28), Position = UDim2.new(0, 12, 0, 28),
+                        TextXAlignment = Enum.TextXAlignment.Left })
+                    Create("TextLabel", { Parent = card, Text = "PING (ms)", Font = Enum.Font.GothamBold,
+                        TextSize = 8, TextColor3 = SubTextColor, BackgroundTransparency = 1,
+                        Size = UDim2.new(0.48, -12, 0, 12), Position = UDim2.new(0, 12, 0, 57),
+                        TextXAlignment = Enum.TextXAlignment.Left })
+                    local waitValue = Create("TextLabel", { Parent = card, Text = "0.4s", Font = Enum.Font.GothamBlack,
+                        TextSize = 18, TextColor3 = TextColor, BackgroundTransparency = 1,
+                        Size = UDim2.new(0.48, -12, 0, 25), Position = UDim2.new(0.52, 0, 0, 30),
+                        TextXAlignment = Enum.TextXAlignment.Left })
+                    Create("TextLabel", { Parent = card, Text = "RESIZE WAIT", Font = Enum.Font.GothamBold,
+                        TextSize = 8, TextColor3 = SubTextColor, BackgroundTransparency = 1,
+                        Size = UDim2.new(0.48, -12, 0, 12), Position = UDim2.new(0.52, 0, 0, 57),
+                        TextXAlignment = Enum.TextXAlignment.Left })
+                    local status = Create("TextLabel", { Parent = card, Text = "AUTO RESIZE  •  OFF", Font = Enum.Font.GothamBold,
+                        TextSize = 9, TextColor3 = AccentColor, BackgroundTransparency = 1,
+                        Size = UDim2.new(1, -24, 0, 14), Position = UDim2.new(0, 12, 0, 84),
+                        TextXAlignment = Enum.TextXAlignment.Left })
+                    return {
+                        SetPing = function(_, value) pingValue.Text = tostring(value or "---") end,
+                        SetWait = function(_, value) waitValue.Text = tostring(value or "---") .. "s" end,
+                        SetMode = function(_, enabled) status.Text = "AUTO RESIZE  •  " .. (enabled and "ON" or "OFF") end,
+                    }
+                end
+
+                function Elements:AddInspectorCard(onCopy)
+                    local card = Create("Frame", {
+                        Parent = ItemContainer, BackgroundColor3 = Color3.fromRGB(27, 25, 42),
+                        BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 128),
+                        LayoutOrder = #ItemContainer:GetChildren() + 1,
+                    })
+                    Create("UICorner", { Parent = card, CornerRadius = UDim.new(0, 10) })
+                    Create("UIStroke", { Parent = card, Color = Color3.fromRGB(58, 54, 82), Thickness = 1, Transparency = 0.2 })
+                    local function Caption(text, y)
+                        Create("TextLabel", { Parent = card, Text = text, Font = Enum.Font.GothamBold,
+                            TextSize = 9, TextColor3 = AccentColor, BackgroundTransparency = 1,
+                            Size = UDim2.new(1, -24, 0, 12), Position = UDim2.new(0, 12, 0, y),
+                            TextXAlignment = Enum.TextXAlignment.Left })
+                    end
+                    local function Line(y, w, size, font, color)
+                        return Create("TextLabel", { Parent = card, Text = "", Font = font,
+                            TextSize = size, TextColor3 = color, BackgroundTransparency = 1,
+                            Size = UDim2.new(1, w, 0, size + 5), Position = UDim2.new(0, 12, 0, y),
+                            TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd })
+                    end
+                    Caption("BLOCK", 8)
+                    local blockMain = Line(22, -24, 13, Enum.Font.GothamBold, TextColor)
+                    local blockSub = Line(41, -24, 10, Enum.Font.GothamMedium, SubTextColor)
+                    Create("Frame", { Parent = card, BackgroundColor3 = Color3.fromRGB(58, 54, 82), BorderSizePixel = 0,
+                        Size = UDim2.new(1, -24, 0, 1), Position = UDim2.new(0, 12, 0, 63) })
+                    Caption("BOOMBOX", 71)
+                    local boomMain = Line(85, -108, 13, Enum.Font.GothamBold, TextColor)
+                    local boomSub = Line(104, -108, 10, Enum.Font.GothamMedium, SubTextColor)
+                    local copyBtn = Create("TextButton", { Parent = card, Text = "COPY", Font = Enum.Font.GothamBold,
+                        TextSize = 10, TextColor3 = Color3.fromRGB(214, 206, 246), AutoButtonColor = false,
+                        BackgroundColor3 = Color3.fromRGB(40, 36, 66), BorderSizePixel = 0,
+                        AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -12, 0, 84), Size = UDim2.new(0, 84, 0, 34) })
+                    Create("UICorner", { Parent = copyBtn, CornerRadius = UDim.new(0, 7) })
+                    local tapArea = Create("TextButton", { Parent = card, Text = "", BackgroundTransparency = 1,
+                        AutoButtonColor = false, Size = UDim2.new(1, -108, 0, 40), Position = UDim2.new(0, 0, 0, 82) })
+                    local function DoCopy()
+                        PlayUISound(UI_SOUND_IDS.Control)
+                        if onCopy then pcall(onCopy) end
+                    end
+                    copyBtn.MouseButton1Click:Connect(DoCopy)
+                    tapArea.MouseButton1Click:Connect(DoCopy)
+                    local api = {}
+                    function api:SetBlock(main, sub)
+                        blockMain.Text = tostring(main or "")
+                        blockSub.Text = tostring(sub or "")
+                    end
+                    function api:SetBoombox(main, sub, canCopy)
+                        boomMain.Text = tostring(main or "")
+                        boomSub.Text = tostring(sub or "")
+                        copyBtn.Visible = canCopy == true
+                        tapArea.Active = canCopy == true
+                    end
+                    api:SetBlock("No block selected", "Click a block to inspect it")
+                    api:SetBoombox("No boombox selected", "Click a boombox to read its sound ID", false)
+                    return api
+                end
+
+                function Elements:AddScriptList(entries, onRun)
+                    local ROW_H, GAP = 50, 5
+                    local Holder = Create("Frame", {
+                        Parent = ItemContainer, BackgroundTransparency = 1,
+                        Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
+                        LayoutOrder = #ItemContainer:GetChildren() + 1,
+                    })
+                    Create("UIListLayout", { Parent = Holder, Padding = UDim.new(0, GAP), SortOrder = Enum.SortOrder.LayoutOrder })
+                    for index, e in ipairs(entries or {}) do
+                        local Row = Create("Frame", { Parent = Holder, BackgroundColor3 = Color3.fromRGB(24, 24, 30),
+                            BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, ROW_H), LayoutOrder = index })
+                        Create("UICorner", { Parent = Row, CornerRadius = UDim.new(0, 8) })
+                        Create("UIStroke", { Parent = Row, Thickness = 1,
+                            Color = e.Tag and AccentColor or Color3.fromRGB(45, 45, 50) })
+                        local pad = e.Tag and 190 or 96
+                        Create("TextLabel", { Parent = Row, Text = tostring(e.Name), Font = Enum.Font.GothamBold,
+                            TextSize = 12, TextColor3 = TextColor, BackgroundTransparency = 1,
+                            Size = UDim2.new(1, -pad, 0, 16), Position = UDim2.new(0, 12, 0, 9),
+                            TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd })
+                        Create("TextLabel", { Parent = Row, Text = tostring(e.Sub or ""), Font = Enum.Font.GothamMedium,
+                            TextSize = 10, TextColor3 = SubTextColor, BackgroundTransparency = 1,
+                            Size = UDim2.new(1, -pad, 0, 14), Position = UDim2.new(0, 12, 0, 27),
+                            TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd })
+                        if e.Tag then
+                            local Chip = Create("TextLabel", { Parent = Row, Text = tostring(e.Tag), Font = Enum.Font.GothamBold,
+                                TextSize = 9, TextColor3 = Color3.fromRGB(214, 206, 246),
+                                BackgroundColor3 = Color3.fromRGB(40, 36, 66), BorderSizePixel = 0,
+                                AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -84, 0.5, 0),
+                                Size = UDim2.new(0, 90, 0, 20) })
+                            Create("UICorner", { Parent = Chip, CornerRadius = UDim.new(1, 0) })
+                        end
+                        local Btn = Create("TextButton", { Parent = Row, Text = "RUN", Font = Enum.Font.GothamBold,
+                            TextSize = 11, TextColor3 = Color3.fromRGB(214, 206, 246), AutoButtonColor = false,
+                            BackgroundColor3 = Color3.fromRGB(40, 36, 66), BorderSizePixel = 0,
+                            AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0),
+                            Size = UDim2.new(0, 64, 0, 30) })
+                        Create("UICorner", { Parent = Btn, CornerRadius = UDim.new(0, 7) })
+                        local busy = false
+                        Btn.MouseButton1Click:Connect(function()
+                            if busy then return end
+                            busy = true
+                            PlayUISound(UI_SOUND_IDS.Control)
+                            Btn.Text = "..."
+                            task.spawn(function()
+                                if onRun then pcall(onRun, e) end
+                                busy = false
+                                if Btn.Parent then Btn.Text = "RUN" end
+                            end)
+                        end)
+                    end
+                    return { Frame = Holder }
+                end
+
+                function Elements:AddLabel(name, infoData)
+                    local wrapper = Create("Frame", {
+                        Parent = ItemContainer,
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(1, 0, 0, 0),
+                        AutomaticSize = Enum.AutomaticSize.Y,
+                        LayoutOrder = #ItemContainer:GetChildren() + 1,
+                    })
+                    local label = Create("TextLabel", {
+                        Parent = wrapper,
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        Size = UDim2.new(1, type(infoData) == "table" and -28 or -20, 0, 0),
+                        AutomaticSize = Enum.AutomaticSize.Y,
+                        Text = tostring(name or ""),
+                        Font = Enum.Font.GothamMedium,
+                        TextSize = 11,
+                        TextColor3 = SubTextColor,
+                        TextWrapped = true,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        TextYAlignment = Enum.TextYAlignment.Center,
+                    })
+                    if type(infoData) == "table" then
+                        local titleWidth = MeasureTitleWidth(tostring(name or ""))
+                        AddInfoIcon(wrapper, UDim2.new(0, 10 + titleWidth + 5, 0, 0), infoData)
+                    end
+                    local proxy = {}
+                    setmetatable(proxy, {
+                        __index = function(_, key)
+                            if key == "Text" or key == "Value" then return label.Text end
+                            if key == "Instance" then return label end
+                            return label[key]
+                        end,
+                        __newindex = function(_, key, value)
+                            if key == "Text" or key == "Value" then
+                                label.Text = tostring(value or "")
+                            else
+                                pcall(function() label[key] = value end)
+                            end
+                        end,
+                    })
+                    return proxy
+                end
+
+                function Elements:AddToggle(name, default, callback, infoData)]],
+        "readonly label control"
+    ) and okPatch
+
+    okPatch = replaceOnce(
+        [[            local function UpdateCanvas()
+                PageScroll.CanvasSize = UDim2.new(0,0,0,
+                    math.max(L_Layout.AbsoluteContentSize.Y, R_Layout.AbsoluteContentSize.Y) + 20)
+            end
+            local GuardedCanvas = RS.Guarded(UpdateCanvas)
+            L_Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(GuardedCanvas)
+            R_Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(GuardedCanvas)]],
+        [[            local function GetUIScaleFactor()
+                local factor = 1
+                local node = PageScroll
+                while node do
+                    for _, child in ipairs(node:GetChildren()) do
+                        if child:IsA("UIScale") then factor = factor * child.Scale end
+                    end
+                    node = node.Parent
+                end
+                if factor <= 0.01 then factor = 1 end
+                return factor
+            end
+            local function UpdateCanvas()
+                if not PageScroll or not PageScroll.Parent then return end
+                local factor = GetUIScaleFactor()
+                local layoutHeight = math.max(L_Layout.AbsoluteContentSize.Y, R_Layout.AbsoluteContentSize.Y)
+                -- Measure the real content in absolute pixels, then convert to canvas (local) units.
+                local origin = PageScroll.AbsolutePosition.Y - PageScroll.CanvasPosition.Y * factor
+                local measuredBottom = 0
+                for _, layout in ipairs({L_Layout, R_Layout}) do
+                    local column = layout.Parent
+                    if column then
+                        for _, child in ipairs(column:GetChildren()) do
+                            if child:IsA("GuiObject") and child.Visible then
+                                local bottom = child.AbsolutePosition.Y + child.AbsoluteSize.Y
+                                if bottom > measuredBottom then measuredBottom = bottom end
+                            end
+                        end
+                    end
+                end
+                local measuredHeight = measuredBottom > 0 and ((measuredBottom - origin) / factor) or 0
+                local contentHeight = math.max(layoutHeight, measuredHeight) + 24
+                PageScroll.ScrollingDirection = Enum.ScrollingDirection.Y
+                PageScroll.ScrollingEnabled = true
+                PageScroll.Active = true
+                PageScroll.CanvasSize = UDim2.new(0, 0, 0, contentHeight)
+                local windowHeight = PageScroll.AbsoluteWindowSize.Y / factor
+                local maxY = math.max(0, contentHeight - windowHeight)
+                if PageScroll.CanvasPosition.Y > maxY then
+                    PageScroll.CanvasPosition = Vector2.new(PageScroll.CanvasPosition.X, maxY)
+                end
+            end
+            local GuardedCanvas = RS.Guarded(UpdateCanvas)
+            L_Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(GuardedCanvas)
+            R_Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(GuardedCanvas)
+            PageScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(GuardedCanvas)
+            PageScroll:GetPropertyChangedSignal("AbsoluteWindowSize"):Connect(GuardedCanvas)
+            do
+                local node = PageScroll
+                while node do
+                    for _, child in ipairs(node:GetChildren()) do
+                        if child:IsA("UIScale") then
+                            child:GetPropertyChangedSignal("Scale"):Connect(function()
+                                task.defer(GuardedCanvas)
+                                task.delay(0.1, GuardedCanvas)
+                            end)
+                        end
+                    end
+                    node = node.Parent
+                end
+            end
+            PageScroll:GetPropertyChangedSignal("Visible"):Connect(function()
+                if PageScroll.Visible then
+                    task.defer(GuardedCanvas)
+                    task.delay(0.08, GuardedCanvas)
+                end
+            end)
+            task.defer(GuardedCanvas)
+            task.delay(0.15, GuardedCanvas)]],
+        "responsive page scrolling"
+    ) and okPatch
+
+
+    okPatch = replaceOnce(
+        "                function Elements:AddCopyButton(name, copyText, infoData)",
+        [==[                function Elements:AddPlayerList(name, onSelect, infoData)
+                    local ROW_H, GAP, MAX_ROWS, HEAD_H = 40, 4, 5, 20
+                    local rows, thumbs, selectedKey = {}, {}, nil
+                    local ROW_BG, ROW_HOVER = Color3.fromRGB(24, 24, 30), Color3.fromRGB(36, 36, 46)
+
+                    local Holder = Create("Frame", {
+                        Parent = ItemContainer, BackgroundTransparency = 1,
+                        Size = UDim2.new(1, 0, 0, HEAD_H + 30),
+                        LayoutOrder = #ItemContainer:GetChildren() + 1,
+                    })
+                    Create("TextLabel", { Parent = Holder, Text = tostring(name), Font = Enum.Font.GothamBold,
+                        TextSize = 12, TextColor3 = SubTextColor, BackgroundTransparency = 1,
+                        Size = UDim2.new(1, -20, 0, 15), Position = UDim2.new(0, 10, 0, 0),
+                        TextXAlignment = Enum.TextXAlignment.Left })
+                    local Empty = Create("TextLabel", { Parent = Holder, Text = (type(infoData) == "table" and infoData.EmptyText) or "No player builds found yet",
+                        Font = Enum.Font.GothamMedium, TextSize = 11, TextColor3 = SubTextColor,
+                        BackgroundTransparency = 1, Size = UDim2.new(1, -20, 0, 24),
+                        Position = UDim2.new(0, 10, 0, HEAD_H + 2), TextXAlignment = Enum.TextXAlignment.Left })
+                    local List = Create("ScrollingFrame", { Parent = Holder, BackgroundTransparency = 1,
+                        BorderSizePixel = 0, Position = UDim2.new(0, 10, 0, HEAD_H), Size = UDim2.new(1, -20, 0, 0),
+                        CanvasSize = UDim2.new(0, 0, 0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y,
+                        ScrollBarThickness = 2, ScrollingDirection = Enum.ScrollingDirection.Y, ClipsDescendants = true })
+                    Create("UIListLayout", { Parent = List, Padding = UDim.new(0, GAP), SortOrder = Enum.SortOrder.LayoutOrder })
+
+                    local function Fmt(n)
+                        local s, k = tostring(math.floor(n)), nil
+                        repeat s, k = s:gsub("^(-?%d+)(%d%d%d)", "%1,%2") until k == 0
+                        return s
+                    end
+                    local function LoadAvatar(img, userId)
+                        if not userId then return end
+                        if thumbs[userId] then img.Image = thumbs[userId] return end
+                        task.spawn(function()
+                            local ok, url = pcall(function()
+                                return Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+                            end)
+                            if ok and url then
+                                thumbs[userId] = url
+                                if img.Parent then img.Image = url end
+                            end
+                        end)
+                    end
+                    local function Paint(r)
+                        local sel = (selectedKey == r.Key)
+                        Tween(r.Stroke, { Color = sel and AccentColor or Color3.fromRGB(45, 45, 50) }, TI.Fast)
+                        Tween(r.Row, { BackgroundColor3 = sel and ROW_HOVER or ROW_BG }, TI.Fast)
+                    end
+                    local function Resize()
+                        local n = 0
+                        for _ in pairs(rows) do n = n + 1 end
+                        local h = n > 0 and (math.min(n, MAX_ROWS) * (ROW_H + GAP) - GAP) or 0
+                        List.Size = UDim2.new(1, -20, 0, h)
+                        Empty.Visible = (n == 0)
+                        Holder.Size = UDim2.new(1, 0, 0, HEAD_H + (n == 0 and 30 or h + 4))
+                    end
+                    local function MakeRow(e)
+                        local r = { Key = e.Key }
+                        r.Row = Create("TextButton", { Parent = List, Text = "", AutoButtonColor = false,
+                            BackgroundColor3 = ROW_BG, BorderSizePixel = 0, Size = UDim2.new(1, -4, 0, ROW_H) })
+                        Create("UICorner", { Parent = r.Row, CornerRadius = UDim.new(0, 8) })
+                        r.Stroke = Create("UIStroke", { Parent = r.Row, Color = Color3.fromRGB(45, 45, 50), Thickness = 1 })
+                        local Av = Create("ImageLabel", { Parent = r.Row, BackgroundColor3 = Color3.fromRGB(30, 30, 44),
+                            BorderSizePixel = 0, Size = UDim2.new(0, 28, 0, 28), Position = UDim2.new(0, 8, 0.5, -14), Image = "" })
+                        Create("UICorner", { Parent = Av, CornerRadius = UDim.new(1, 0) })
+                        Create("UIStroke", { Parent = Av, Color = AccentColor, Thickness = 1.5 })
+                        r.Av = Av
+                        r.Label = Create("TextLabel", { Parent = r.Row, Text = "", Font = Enum.Font.GothamBold, TextSize = 12, RichText = true,
+                            TextColor3 = TextColor, BackgroundTransparency = 1, Size = UDim2.new(1, -132, 1, 0),
+                            Position = UDim2.new(0, 44, 0, 0), TextXAlignment = Enum.TextXAlignment.Left,
+                            TextTruncate = Enum.TextTruncate.AtEnd })
+                        r.Sub = Create("TextLabel", { Parent = r.Row, Text = "(not in-game)", Font = Enum.Font.GothamMedium, TextSize = 10,
+                            TextColor3 = Color3.fromRGB(150, 150, 165), BackgroundTransparency = 1, Visible = false,
+                            Size = UDim2.new(1, -132, 0, 14), Position = UDim2.new(0, 44, 0, 22),
+                            TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd })
+                        r.Chip = Create("TextLabel", { Parent = r.Row, Text = "", Font = Enum.Font.GothamBold, TextSize = 10,
+                            TextColor3 = Color3.fromRGB(214, 206, 246), BackgroundColor3 = Color3.fromRGB(40, 36, 66),
+                            BorderSizePixel = 0, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0),
+                            Size = UDim2.new(0, 76, 0, 20) })
+                        Create("UICorner", { Parent = r.Chip, CornerRadius = UDim.new(1, 0) })
+                        r.Row.MouseEnter:Connect(function()
+                            if selectedKey ~= r.Key then Tween(r.Row, { BackgroundColor3 = ROW_HOVER }, TI.Fast) end
+                        end)
+                        r.Row.MouseLeave:Connect(function() Paint(r) end)
+                        r.Row.MouseButton1Click:Connect(function()
+                            PlayUISound(UI_SOUND_IDS.Control)
+                            local old = rows[selectedKey]
+                            selectedKey = (selectedKey ~= r.Key) and r.Key or nil
+                            if old then Paint(old) end
+                            Paint(r)
+                            if onSelect then pcall(onSelect, selectedKey) end
+                        end)
+                        return r
+                    end
+
+                    local function SelectKey(key)
+                        local old = rows[selectedKey]
+                        selectedKey = (key ~= nil and rows[key]) and key or nil
+                        if old then Paint(old) end
+                        local cur = rows[selectedKey]
+                        if cur then Paint(cur) end
+                    end
+
+                    local function SetEntries(list)
+                        local seen = {}
+                        for i, e in ipairs(list or {}) do
+                            seen[e.Key] = true
+                            local r = rows[e.Key]
+                            if not r then r = MakeRow(e); rows[e.Key] = r end
+                            r.Row.LayoutOrder = i
+                            local uname = tostring(e.Name):gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;")
+                            local who
+                            if e.Display and e.Display ~= "" then
+                                local dname = tostring(e.Display):gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;")
+                                who = dname .. " (@" .. uname .. ")"
+                            else
+                                who = "@" .. uname
+                            end
+                            local away = (e.InGame == false)
+                            r.Label.Text = who
+                            r.Label.Size = away and UDim2.new(1, -132, 0, 18) or UDim2.new(1, -132, 1, 0)
+                            r.Label.Position = away and UDim2.new(0, 44, 0, 4) or UDim2.new(0, 44, 0, 0)
+                            r.Sub.Visible = away
+                            r.Av.ImageTransparency = (e.InGame == false) and 0.45 or 0
+                            if e.UserId and r.UserId ~= e.UserId then
+                                r.UserId = e.UserId
+                                LoadAvatar(r.Av, e.UserId)
+                            end
+                            r.Chip.Text = e.Chip or (Fmt(e.Count or 0) .. ((e.Count or 0) == 1 and " brick" or " bricks"))
+                            r.Chip.Visible = (e.Chip ~= "")
+                            local labelW = (e.Chip == "") and -56 or -132
+                            r.Label.Size = (e.InGame == false) and UDim2.new(1, labelW, 0, 18) or UDim2.new(1, labelW, 1, 0)
+                        end
+                        for key, r in pairs(rows) do
+                            if not seen[key] then
+                                r.Row:Destroy()
+                                rows[key] = nil
+                                if selectedKey == key then
+                                    selectedKey = nil
+                                    if onSelect then task.defer(onSelect, nil) end
+                                end
+                            end
+                        end
+                        Resize()
+                    end
+                    Resize()
+
+                    return {
+                        SetEntries = SetEntries,
+                        Get = function() return selectedKey end,
+                        Select = SelectKey,
+                        Clear = function() SetEntries({}) end,
+                        Frame = Holder,
+                        IsAlive = function() return Holder:IsDescendantOf(game) end,
+                    }
+                end
+
+                function Elements:AddCopyButton(name, copyText, infoData)]==],
+        "player list element"
+    ) and okPatch
+
+    -- Keep the info icon aligned to the right edge of the control title row.
+
+    if not okPatch then
+        warn("[TCOE] ZyronX library compatibility patch incomplete; aborting to avoid a broken interface.")
+        return nil
+    end
+
+    -- Rebrand visible "ZyronX" text (splash/title strings) to "Better Extras".
+    -- Only touches string literals, skips anything path/URL-like, and falls back if it would not compile.
+    do
+        local function brand(text)
+            if text:find("/", 1, true) or text:find("\\", 1, true) then return text end
+            local function pick(m) return (m == m:upper()) and "BETTER EXTRAS" or "Better Extras" end
+            text = text:gsub("[Zz][Yy][Rr][Oo][Nn]%s?[Xx]%s?[Uu][Ii]", pick)
+            text = text:gsub("[Zz][Yy][Rr][Oo][Nn]%s?[Xx]", pick)
+            return text
+        end
+        local function rebrand(src)
+            local out, i, n = {}, 1, #src
+            while i <= n do
+                local s0 = src:find("[%-\"'%[]", i)
+                if not s0 then out[#out + 1] = src:sub(i); break end
+                if s0 > i then out[#out + 1] = src:sub(i, s0 - 1) end
+                i = s0
+                local c = src:sub(i, i)
+                if c == "-" then
+                    if src:sub(i, i + 1) == "--" then
+                        local lb = src:match("^%-%-%[(=*)%[", i)
+                        local e
+                        if lb then
+                            local _, ce = src:find("]" .. lb .. "]", i + 2, true)
+                            e = ce or n
+                        else
+                            e = src:find("\n", i, true) or n
+                        end
+                        out[#out + 1] = src:sub(i, e)
+                        i = e + 1
+                    else
+                        out[#out + 1] = c
+                        i = i + 1
+                    end
+                elseif c == "[" then
+                    local eqs = src:match("^%[(=*)%[", i)
+                    if eqs then
+                        local open, close = "[" .. eqs .. "[", "]" .. eqs .. "]"
+                        local _, ce = src:find(close, i + #open, true)
+                        if ce then
+                            out[#out + 1] = open .. brand(src:sub(i + #open, ce - #close)) .. close
+                            i = ce + 1
+                        else
+                            out[#out + 1] = src:sub(i)
+                            break
+                        end
+                    else
+                        out[#out + 1] = c
+                        i = i + 1
+                    end
+                else
+                    local j = i + 1
+                    while j <= n do
+                        local d = src:sub(j, j)
+                        if d == "\\" then j = j + 2
+                        elseif d == c or d == "\n" then break
+                        else j = j + 1 end
+                    end
+                    if src:sub(j, j) == c then
+                        out[#out + 1] = c .. brand(src:sub(i + 1, j - 1)) .. c
+                        i = j + 1
+                    else
+                        out[#out + 1] = src:sub(i, j - 1)
+                        i = j
+                    end
+                end
+            end
+            return table.concat(out)
+        end
+        local okRb, renamed = pcall(rebrand, source)
+        if okRb and type(renamed) == "string" and renamed ~= source and type(loadstring(renamed)) == "function" then
+            source = renamed
+        end
+    end
+
+    local chunk, compileError = loadstring(source)
+    if type(chunk) ~= "function" then
+        warn("[TCOE] ZyronX library compile failed: " .. tostring(compileError))
+        return nil
+    end
+    local ran, library = pcall(chunk)
+    if not ran then
+        warn("[TCOE] ZyronX library startup failed: " .. tostring(library))
+        return nil
+    end
+    return library
 end
+
+warn("[TCOE-DIAG] v0.2.3: downloading/patching ZyronX library")
+local Library = loadZyronX()
+if not Library then
+    error("[TCOE] Cannot load or initialize ZyronX UI Library.")
+end
+
+warn("[TCOE-DIAG] v0.2.3: ZyronX library loaded; creating window")
+local Window = Library:CreateWindow({
+    Title = "Better EXTRA Stuff",
+    Subtitle = "BY HOLLIS",
+    SubtitleColor = Color3.fromRGB(190, 140, 255),
+    UITheme = "Default",
+    PanelTheme = "Default",
+    PanelSync = true,
+    FpsPosition = "TopLeft",
+})
+Window:AddCredit("Hollis", "Better Extra Stuff")
+Window:AddCredit("ZyronX", "UI Library")
+warn("[TCOE-DIAG] v0.2.3: window created; continuing script setup")
 
 local TCOE_INSTANCE_KEY = "__TCOE_BetterExtra_Instance"
 local lib = {}
 local scriptUnloading = false
 local tabSections = setmetatable({}, {__mode = "k"})
+local tabNames = setmetatable({}, {__mode = "k"})
+local controlCounts = {}
 local currentInstance
 
--- Forward declarations
+
 local prttable
 local gizmoOffset = Vector3.new(0,0,0)
 local gizmoPivotCenter
@@ -171,9 +807,9 @@ local isSignPanel
 local findSignLeg
 local findParentPart
 local deletedisplay = function(id)
-	pcall(function()
-		if id and id.Destroy then id:Destroy() end
-	end)
+    pcall(function()
+        if id and id.Destroy then id:Destroy() end
+    end)
 end
 
 function lib.makelib(_)
@@ -184,14 +820,6 @@ function lib.makelib(_)
         if lib.ondestroyedfunc then
             pcall(lib.ondestroyedfunc)
         end
-        pcall(function()
-            if Minimizer then Minimizer.Visible = false end
-        end)
-        pcall(function()
-            local cg = game:GetService("CoreGui")
-            local mg = cg:FindFirstChild("FluentMinimizerGui")
-            if mg then mg:Destroy() end
-        end)
         pcall(function() Window:Destroy() end)
         pcall(function()
             if getgenv()[TCOE_INSTANCE_KEY] == currentInstance then
@@ -202,7 +830,7 @@ function lib.makelib(_)
     return gui
 end
 
-local libgui = lib.makelib(" Better EXTRA Stuff (BY HOLLIS)")
+local libgui = lib.makelib("Better EXTRA Stuff")
 
 local previousInstance = getgenv()[TCOE_INSTANCE_KEY]
 if type(previousInstance) == "table" and type(previousInstance.Destroy) == "function" then
@@ -225,955 +853,259 @@ getgenv()[TCOE_INSTANCE_KEY] = currentInstance
 
 local function sectionFor(tab)
     if tabSections[tab] then return tabSections[tab] end
-    local sec = tab:AddSection("Beter TCO EXTRAS", "solar/widget-bold")
-    tabSections[tab] = sec
-    return sec
+    local page = tab:CreatePage("Main")
+    local section = page:CreateSection(tabNames[tab] or "General")
+    tabSections[tab] = section
+    return section
+end
+
+
+
+local pageCache = {}
+function lib.setpage(tab, pageName, sectionName)
+    if not tab then return end
+    pageCache[tab] = pageCache[tab] or {}
+    local key = tostring(pageName or "Main") .. "|" .. tostring(sectionName or pageName or "General")
+    if not pageCache[tab][key] then
+        local page
+        for _, existing in ipairs(tab.Pages or {}) do
+            if existing.PageName == tostring(pageName or "Main") then
+                page = existing
+                break
+            end
+        end
+        page = page or tab:CreatePage(tostring(pageName or "Main"))
+        pageCache[tab][key] = page:CreateSection(tostring(sectionName or pageName or "General"))
+    end
+    tabSections[tab] = pageCache[tab][key]
+end
+
+local function controlId(text, tab)
+    local tabName = tostring(tabNames[tab] or "General")
+    local label = tostring(text or "Control")
+    local base = ("TCOE_" .. tabName .. "_" .. label):gsub("[^%w_]", "_")
+    controlCounts[base] = (controlCounts[base] or 0) + 1
+    return base .. "_" .. tostring(controlCounts[base])
 end
 
 function lib.maketab(name)
-    local icon = "solar/widget-bold"
-    local n = tostring(name):lower()
-    if n == "build" then icon = "solar/sledgehammer-bold"
-    elseif n == "tools" then icon = "solar/ruler-cross-pen-linear"
-    elseif n == "gears" then icon = "solar/settings-bold"
-    elseif n == "build save/load" then icon = "solar/diskette-bold"
-    elseif n == "transform" then icon = "solar/transfer-horizontal-bold"
-    elseif n == "more scripts" then icon = "solar/code-2-bold"
-    elseif n == "credit" then icon = "solar/heart-bold"
-    elseif n == "moderation & management" then icon = "solar/shield-bold" end
-
-    local tab = newFluentTab(name, icon, false)
-    -- Create the tab's section immediately. This avoids relying on Tab properties
-    -- or a second metadata table, and uses the exact AddSection API from Fluent-Modded.
-    tabSections[tab] = tab:AddSection(tostring(name), "solar/widget-bold")
+    local isDefault = name == "Build"
+    local tab = Window:CreateTab(tostring(name), isDefault, false)
+    tabNames[tab] = tostring(name)
+    
+    
     return tab
 end
 
 function lib.makelabel(text, tab, content)
-    return sectionFor(tab):AddParagraph({
-        Title = tostring(text or ""),
-        Content = content and tostring(content) or "",
-    })
+    if text == nil or tostring(text) == "" then
+        return setmetatable({}, {
+            __index = function() return "" end,
+            __newindex = function() end,
+        })
+    end
+    return sectionFor(tab):AddLabel(tostring(text), content and {
+        Description = tostring(content),
+    } or nil)
 end
 
-function lib.makebutton(text, tab, callback)
-    return sectionFor(tab):AddButton({Title = tostring(text), Callback = callback})
+function lib.makeinspector(tab, onCopy)
+    local section = sectionFor(tab)
+    if not section.AddInspectorCard then return nil end
+    return section:AddInspectorCard(onCopy)
+end
+
+function lib.makescriptlist(tab, entries, onRun)
+    local section = sectionFor(tab)
+    if not section.AddScriptList then return nil end
+    return section:AddScriptList(entries, onRun)
+end
+
+function lib.makeresizecard(tab)
+    return sectionFor(tab):AddResizeStatsCard()
+end
+
+function lib.makebutton(text, tab, callback, infoData)
+    return sectionFor(tab):AddButton(tostring(text), callback, infoData)
 end
 
 function lib.maketoggle(text, tab, callback, default, desc)
-    local id = "TCOE_" .. tostring(math.random(100000,999999))
-    return sectionFor(tab):AddToggle(id, {
+    local id = controlId(text, tab)
+    return sectionFor(tab):AddToggle(id, default == true, callback, {
         Title = tostring(text),
         Description = desc and tostring(desc) or nil,
-        Default = default == true,
-        Callback = callback
     })
 end
 
-function lib.maketextbox(text, tab, callback)
-	local id = "TCOE_" .. tostring(math.random(100000,999999))
-	local lastFired = nil
-	local function fire(value)
-		if value == nil or value == "" then return end
-		if value == lastFired then return end
-		lastFired = value
-		local ok, err = pcall(callback, value)
-		if not ok then
-			warn("[TCOE] textbox callback error:", err)
-			pcall(function() notify("Input Error", tostring(err)) end)
-		end
-	end
-	local input = sectionFor(tab):AddInput(id, {
-		Title = tostring(text),
-		Placeholder = tostring(text),
-		Default = "",
-		Finished = true,
-		Callback = fire,
-	})
-	-- Mobile fallback: some Fluent builds only fire Finished on Enter
-	pcall(function()
-		local tb = input.TextBox or input.Instance or input.Textbox
-		if tb and tb.FocusLost then
-			tb.FocusLost:Connect(function()
-				fire(tb.Text)
-			end)
-		end
-	end)
-	local proxy = {}
-	setmetatable(proxy, {
-		__index = function(_, key)
-			if key == "Text" then
-				return input.Value or ""
-			elseif key == "PlaceholderText" then
-				return input.Placeholder or ""
-			end
-			return input[key]
-		end,
-		__newindex = function(_, key, value)
-			if key == "Text" then
-				pcall(function() input:SetValue(tostring(value or "")) end)
-			elseif key == "PlaceholderText" then
-				pcall(function() input:SetPlaceholder(tostring(value or "")) end)
-			else
-				pcall(function() input[key] = value end)
-			end
-		end,
-	})
-	return proxy
+function lib.maketextbox(text, tab, callback, live)
+    local id = controlId(text, tab)
+    local lastFired
+    local lastSet
+    local function fire(value)
+        if value == nil or value == "" or value == lastFired then return end
+        lastFired = value
+        local ok, err = pcall(callback, value)
+        if not ok then
+            warn("[TCOE] textbox callback error:", err)
+            pcall(function() notify("Input Error", tostring(err), "Error") end)
+        end
+    end
+    local input = sectionFor(tab):AddTextbox(id, tostring(text), fire, {
+        Title = tostring(text),
+        SubmitOnEnter = true,
+        AllowEmpty = true,
+    })
+    if live then
+        -- auto-apply while typing (no Enter needed), debounced like the Settings/Config search boxes
+        local box = input and input.Instance
+        if box then
+            local token = 0
+            box:GetPropertyChangedSignal("Text"):Connect(function()
+                local v = box.Text
+                if v == lastSet then return end -- text written by the script itself, not by the user
+                token = token + 1
+                local mine = token
+                task.delay(0.4, function()
+                    if mine == token and box.Parent and box.Text == v then fire(v) end
+                end)
+            end)
+            box.FocusLost:Connect(function()
+                token = token + 1
+                local v = box.Text
+                if v ~= lastSet then fire(v) end
+            end)
+        end
+    end
+    local proxy = {}
+    setmetatable(proxy, {
+        __index = function(_, key)
+            if key == "Text" then return input and input.Get and input.Get() or "" end
+            if key == "Value" then return input and input.Get and input.Get() or "" end
+            if key == "PlaceholderText" then return tostring(text) end
+            if key == "TextBox" then return input and input.TextBox end
+            return input and input[key]
+        end,
+        __newindex = function(_, key, value)
+            if key == "Text" or key == "Value" then
+                lastSet = tostring(value or "")
+                lastFired = nil
+                if input and input.Set then input:Set(lastSet) end
+            elseif key == "PlaceholderText" then
+                
+            else
+                pcall(function() input[key] = value end)
+            end
+        end,
+    })
+    return proxy
+end
+
+function lib.maketextboxlive(text, tab, callback)
+    return lib.maketextbox(text, tab, callback, true)
+end
+
+function lib.makeslider(text, tab, minValue, maxValue, defaultValue, callback)
+    local id = controlId(text, tab)
+    return sectionFor(tab):AddSlider(id, minValue, maxValue, defaultValue, function(value)
+        local numericValue = tonumber(value)
+        if numericValue == nil then return end
+        callback(numericValue)
+    end, {
+        Title = tostring(text),
+    })
 end
 
 function lib.makedropdown(text, tab, values, callback)
-    local id = "TCOE_" .. tostring(math.random(100000,999999))
-    return sectionFor(tab):AddDropdown(id, {
+    local id = controlId(text, tab)
+    local control = sectionFor(tab):AddDropdown(id, values or {}, false, function(value)
+        if value ~= nil and value ~= "" then callback(value) end
+    end, {
         Title = tostring(text),
-        Values = values or {},
-        AllowNull = true,
-        Callback = function(value)
-            if value == nil or value == "" then return end
-            callback(value)
-        end,
     })
+    return control
+end
+
+function lib.makeplayerlist(text, tab, callback, infoData)
+    local section = sectionFor(tab)
+    if not section.AddPlayerList then return nil end
+    return section:AddPlayerList(tostring(text), callback, infoData)
 end
 
 function lib.updatedropdown(dropdown, values)
-    if dropdown and dropdown.SetValues then
-        dropdown:SetValues(values or {})
+    if dropdown and dropdown.SetOptions then
+        dropdown.SetOptions(values or {})
     end
 end
 
 function lib.updatelabel(text, label)
     if not label then return end
-    pcall(function()
-        if label.SetTitle then label:SetTitle(tostring(text)) return end
-        if label.Title then label.Title.Text = tostring(text) return end
-        if label.Container then
-            for _,v in ipairs(label.Container:GetDescendants()) do
-                if v:IsA("TextLabel") and v.Text ~= "" then
-                    v.Text = tostring(text)
-                    return
-                end
-            end
-        end
-    end)
+    pcall(function() label.Text = tostring(text) end)
 end
 
-notify = function(title, text)
+notify = function(title, text, kind)
     local ok = pcall(function()
-        Fluent:Notify({
+        Library:Notify({
             Title = tostring(title),
-            Content = tostring(text),
+            Desc = tostring(text),
+            Be = kind or "Success",
             Duration = 5,
         })
     end)
     if not ok then
-        local ok2 = pcall(function()
+        pcall(function()
             game:GetService("StarterGui"):SetCore("SendNotification", {
                 Title = tostring(title), Text = tostring(text), Duration = 6,
             })
         end)
-        if not ok2 then
-            warn("[TCOE Notify]", tostring(title), "|", tostring(text))
-        end
     end
 end
 
 local buildtab = lib.maketab("Build")
 local bsaltab = lib.maketab("Build Save/Load")
-local transformtab = lib.maketab("Transform")
 local geartab = lib.maketab("Gears")
 local tooltab = lib.maketab("Tools")
 local modtab = lib.maketab("Moderation & Management")
 local scripttab = lib.maketab("More Scripts")
+local settingstab = Window:CreateTab("Settings", false, false)
+local settingsPage = settingstab:CreatePage("Settings")
+local configSection = settingsPage:CreateSection("Config Manager")
+configSection:AddConfigManager("BetterTCOExtra")
 
-local configurationtab = newFluentTab("Configuration", "settings", false)
-local visualtab = newFluentTab("Visual", "image", true)
-local credittab = lib.maketab("Credit")
+lib.setpage(scripttab, "Script Library", "External Scripts")
+lib.setpage(buildtab, "Building", "Basic Building")
 
-do
-    local cs = sectionFor(credittab)
-    cs:AddParagraph({
-        Title = "Original Owner",
-        Content = "Extra Stuff | 2areyoumental",
-    })
-    cs:AddParagraph({
-        Title = "Owner",
-        Content = "Better Extra Stuff | Hollis",
-    })
-    cs:AddDivider()
-    cs:AddParagraph({
-        Title = "UI Library",
-        Content = "Fluent-Modded (StyearX)",
-    })
+do -- scoped: keeps the script-library locals out of the main chunk's 200-local limit
+    local function runExternal(e)
+        local ok, src = pcall(game.HttpGet, game, e.Url)
+        if not ok or type(src) ~= "string" or src == "" then
+            notify(e.Name, "Could not download the script", "Error")
+            return
+        end
+        local fn, cerr = loadstring(src)
+        if type(fn) ~= "function" then
+            warn("[TCOE] " .. e.Name .. " failed to compile: " .. tostring(cerr))
+            notify(e.Name, "Script failed to compile", "Error")
+            return
+        end
+        local ran, rerr = pcall(fn)
+        if ran then
+            notify(e.Name, "Script executed")
+        else
+            warn("[TCOE] " .. e.Name .. " runtime error: " .. tostring(rerr))
+            notify(e.Name, "Script error (see console)", "Error")
+        end
+    end
+    lib.makescriptlist(scripttab, {
+        {Name = "F(x)Hub", Sub = "by JSWorth  •  github.com", Tag = "RECOMMENDED",
+            Url = "https://raw.githubusercontent.com/JSWorth/f-x-hub/refs/heads/main/TCO.lua"},
+        {Name = "Command Line", Sub = "by 2areyoumental110  •  rawscripts.net",
+            Url = "https://rawscripts.net/raw/The-Chosen-One-Command-Line-209565"},
+        {Name = "GrieferHub", Sub = "by Agarv  •  rawscripts.net",
+            Url = "https://rawscripts.net/raw/The-Chosen-One-GrieferHub-244550"},
+        {Name = "AGARWARE", Sub = "by Agarv  •  github.com",
+            Url = "https://raw.githubusercontent.com/agarv0/AGARWARE/master/loader.lua"},
+    }, runExternal)
 end
-lib.makebutton("Command line | 2areyoumental110", scripttab, function()
-    loadstring(game:HttpGet("https://rawscripts.net/raw/The-Chosen-One-Command-Line-209565"))()
-end)
-lib.makebutton("GrieferHub | Agarv", scripttab, function()
-    loadstring(game:HttpGet("https://rawscripts.net/raw/The-Chosen-One-GrieferHub-244550"))()
-end)
-lib.makebutton("Autobuild | Agarv", scripttab, function()
-    loadstring(game:HttpGet("https://rawscripts.net/raw/The-Chosen-One-Auto-Build-by-agarv-228760"))()
-end)
-lib.makebutton("AGARWARE | Agarv", scripttab, function()
-    loadstring(game:HttpGet('https://raw.githubusercontent.com/agarv0/AGARWARE/master/loader.lua'))()
-end)
-pcall(function()
-    InterfaceManager:SetLibrary(Fluent)
-    InterfaceManager:SetFolder("BetterTCOExtra")
-    InterfaceManager:BuildInterfaceSection(configurationtab)
-    InterfaceManager:LoadSettings()
-end)
-
-pcall(function()
-    SaveManager:SetLibrary(Fluent)
-    SaveManager:SetFolder("BetterTCOExtra/Config")
-    SaveManager:IgnoreThemeSettings()
-    SaveManager:BuildConfigSection(configurationtab)
-    SaveManager:LoadAutoloadConfig()
-end)
-pcall(function()
-    FloatingButtonManager:SetLibrary(Fluent)
-    FloatingButtonManager:SetFolder("BetterTCOExtra/Floating")
-    FloatingButtonManager:BuildConfigSection(configurationtab)
-    FloatingButtonManager:LoadAutoloadConfig()
-end)
-
-
-
--- ============================================================
--- UI Size (runtime, no save, drag still works)
--- ============================================================
-local uiSizeInputs = {}
-
-local function readSizeInput(id, fallback)
-    local inp = uiSizeInputs[id]
-    if not inp then return fallback end
-    local raw = inp.Value
-    if raw == nil and inp.TextBox then raw = inp.TextBox.Text end
-    return tonumber(raw) or fallback
-end
-
-local function applyUISizes()
-    local w = math.clamp(math.floor(readSizeInput("TCOE_UIWidth",  680)), 101, 2000)
-    local h = math.clamp(math.floor(readSizeInput("TCOE_UIHeight", 390)), 101, 1500)
-    Window.Size = UDim2.fromOffset(w, h)
-    Window.Root.Size = UDim2.fromOffset(w, h)
-    notify("UI Size", "Applied: " .. w .. " x " .. h)
-end
-
-local function applyIconSize(size)
-    size = math.clamp(math.floor(tonumber(size) or 56), 16, 100)
-    local cg = game:GetService("CoreGui")
-    local mg = cg:FindFirstChild("FluentMinimizerGui")
-    if not mg then
-        for _, g in ipairs(cg:GetChildren()) do
-            if g:IsA("ScreenGui") and g.Name:lower():find("minimizer") then
-                mg = g; break
-            end
-        end
-    end
-    if not mg then return end
-    local btn = mg:FindFirstChild("FluentMinimizerBtn", true)
-    if not btn then
-        for _, d in ipairs(mg:GetDescendants()) do
-            if d:IsA("GuiButton") then btn = d; break end
-        end
-    end
-    if btn then
-        btn.Size = UDim2.fromOffset(size, size)
-        local img = btn:FindFirstChildWhichIsA("ImageLabel", true)
-        if img then
-            local pad = 6
-            img.Size = UDim2.new(1, -(pad * 2), 1, -(pad * 2))
-        end
-    end
-end
-
-local UISizeSection = configurationtab:AddSection("UI Size", "solar/ruler-pen-bold")
-
-uiSizeInputs["TCOE_UIWidth"] = UISizeSection:AddInput("TCOE_UIWidth", {
-    Title = "UI Width (101-2000)",
-    Placeholder = "680",
-    Default = "680",
-    Numeric = true,
-    Finished = true,
-    Callback = function(v) end,
-})
-
-uiSizeInputs["TCOE_UIHeight"] = UISizeSection:AddInput("TCOE_UIHeight", {
-    Title = "UI Height (101-1500)",
-    Placeholder = "390",
-    Default = "390",
-    Numeric = true,
-    Finished = true,
-    Callback = function(v) end,
-})
-
-UISizeSection:AddButton({
-    Title = "Apply UI Size",
-    Description = "Apply width & height. Drag resize still works afterward.",
-    Icon = "solar/check-circle-bold",
-    Callback = applyUISizes,
-})
-
-UISizeSection:AddSlider("TCOE_IconSize", {
-    Title = "Minimizer Icon Size (16-100)",
-    Min = 16, Max = 100, Default = 56, Rounding = 0,
-    Callback = function(v) applyIconSize(v) end,
-})
-local UnloadSection = configurationtab:AddSection("Unload", "solar/power-bold")
-UnloadSection:AddButton({
-    Title = "Unload Script",
-    Description = "Stops Better Extras and removes its UI.",
-    Icon = "solar/close-circle-bold",
-    Callback = function()
-        Window:Dialog({
-            Title = "Unload Script?",
-            Content = "Are you sure you want to unload interface?",
-            Buttons = {
-                { Title = "Yes", Callback = function() libgui:Destroy() end },
-                { Title = "No" },
-            },
-        })
-    end,
-})
-
-pcall(function()
-    if Window.Root then
-        Window.Root.AncestryChanged:Connect(function(_, parent)
-            if not parent and not scriptUnloading then
-                libgui:Destroy()
-            end
-        end)
-    end
-end)
-
--- ============================================================
--- Visual tab: Lighting / Sky / Atmosphere / Effects / Time
--- ============================================================
-do
-    local Lighting = game:GetService("Lighting")
-    local RS = game:GetService("RunService")
-
-    local LC = {
-        OutdoorAmbient = Color3.fromRGB(127, 127, 127),
-        Brightness = 2,
-        AtmosEnabled = false, AtmosDensity = 0, AtmosOffset = 0, AtmosHaze = 0, AtmosGlare = 0,
-        AtmosColor = Color3.fromRGB(199, 170, 107), AtmosDecay = Color3.fromRGB(91, 127, 232),
-        SunRayEnabled = false, SunRayIntensity = 0.25, SunRaySpread = 0.5,
-        CcEnabled = false, CcBrightness = 0, CcContrast = 0, CcSaturation = 0,
-        CcTintColor = Color3.fromRGB(255, 255, 255),
-        BloomEnabled = false, BloomIntensity = 0.35, BloomSize = 24, BloomThreshold = 0.95,
-        CloudsEnabled = false, CloudsDensity = 0.5, CloudsCover = 0.5,
-        CloudsColor = Color3.fromRGB(199, 199, 199),
-        BlurEnabled = false, BlurSize = 24,
-        DofEnabled = false, DofFocusDistance = 50, DofInFocusRadius = 10,
-        DofNearIntensity = 1, DofFarIntensity = 1,
-    }
-
-    local function GetOrCreateSky()
-        local sky = Lighting:FindFirstChildOfClass("Sky")
-        if not sky then
-            sky = Instance.new("Sky")
-            sky.Name = "Sky"
-            sky.Parent = Lighting
-        end
-        return sky
-    end
-
-    local function GetOrCreateDoF()
-        local cam = workspace.CurrentCamera
-        local dof = cam:FindFirstChildOfClass("DepthOfFieldEffect")
-        if not dof then
-            dof = Instance.new("DepthOfFieldEffect")
-            dof.Name = "DepthOfFieldEffect"
-            dof.Parent = cam
-        end
-        return dof
-    end
-
-    local SecLighting = visualtab:AddSection("Lighting Configuration", "solar/sun-fog-bold")
-    SecLighting:AddSpace({ Height = 15 })
-
-    SecLighting:AddToggle("LightingCelestialBodies", {
-        Title = "Celestial Bodies",
-        Description = "Show sun & moon in the sky",
-        Default = GetOrCreateSky().CelestialBodiesShown,
-        Callback = function(v)
-            GetOrCreateSky().CelestialBodiesShown = v
-        end,
-    })
-
-    SecLighting:AddSlider("LightingSunAngularSize", {
-        Title = "Sun Angular Size",
-        Min = 0, Max = 60, Default = math.round(GetOrCreateSky().SunAngularSize), Rounding = 0,
-        Callback = function(v)
-            GetOrCreateSky().SunAngularSize = v
-        end,
-    })
-
-    SecLighting:AddSlider("LightingMoonAngularSize", {
-        Title = "Moon Angular Size",
-        Min = 0, Max = 60, Default = math.round(GetOrCreateSky().MoonAngularSize), Rounding = 0,
-        Callback = function(v)
-            GetOrCreateSky().MoonAngularSize = v
-        end,
-    })
-
-    SecLighting:AddInput("LightingSunTextureId", {
-        Title = "Sun Texture ID",
-        Placeholder = "rbxassetid://...",
-        Default = "rbxassetid://91816974179437",
-        Finished = true,
-        Callback = function(v)
-            v = v:gsub("^%s*(.-)%s*$", "%1")
-            if v ~= "" then
-                if not v:match("^rbxassetid://") then v = "rbxassetid://" .. v end
-                GetOrCreateSky().SunTextureId = v
-            end
-        end,
-    })
-
-    SecLighting:AddInput("LightingMoonTextureId", {
-        Title = "Moon Texture ID",
-        Placeholder = "rbxassetid://...",
-        Finished = true,
-        Callback = function(v)
-            v = v:gsub("^%s*(.-)%s*$", "%1")
-            if v ~= "" then
-                if not v:match("^rbxassetid://") then v = "rbxassetid://" .. v end
-                GetOrCreateSky().MoonTextureId = v
-            end
-        end,
-    })
-
-    SecLighting:AddSlider("LightingStarCount", {
-        Title = "Star Count",
-        Min = 0, Max = 5000, Default = GetOrCreateSky().StarCount, Rounding = 0,
-        Callback = function(v)
-            GetOrCreateSky().StarCount = v
-        end,
-    })
-
-    SecLighting:AddSlider("LightingBrightness", {
-        Title = "Ambient Brightness",
-        Min = 0, Max = 2, Default = LC.Brightness, Rounding = 2,
-        Callback = function(v)
-            LC.Brightness = v
-            Lighting.Brightness = v
-        end,
-    })
-
-    SecLighting:AddColorpicker("LightingOutdoorAmbient", {
-        Title = "Outdoor Ambient",
-        Default = LC.OutdoorAmbient,
-        Callback = function(v)
-            LC.OutdoorAmbient = v
-            Lighting.OutdoorAmbient = v
-        end,
-    })
-
-    SecLighting:AddDivider()
-    SecLighting:AddSpace({ Height = 15 })
-
-    local colAtmos = SecLighting:AddCollapsibleSection("Atmosphere", "solar/clouds-bold", false)
-
-    colAtmos:AddToggle("AtmosEnabled", {
-        Title = "Enable Atmosphere",
-        Default = LC.AtmosEnabled,
-        Callback = function(v)
-            LC.AtmosEnabled = v
-            local atmos = Lighting:FindFirstChildOfClass("Atmosphere")
-            if v then
-                if not atmos then
-                    atmos = Instance.new("Atmosphere")
-                    atmos.Name = "Atmosphere"
-                    atmos.Parent = Lighting
-                end
-                atmos.Density = LC.AtmosDensity
-                atmos.Offset = LC.AtmosOffset
-                atmos.Haze = LC.AtmosHaze
-                atmos.Glare = LC.AtmosGlare
-                atmos.Color = LC.AtmosColor
-                atmos.Decay = LC.AtmosDecay
-            else
-                if atmos then atmos:Destroy() end
-            end
-        end,
-    })
-    colAtmos:AddSlider("AtmosDensity", {
-        Title = "Density",
-        Min = 0, Max = 1, Default = LC.AtmosDensity, Rounding = 2,
-        Callback = function(v)
-            LC.AtmosDensity = v
-            local atmos = Lighting:FindFirstChildOfClass("Atmosphere")
-            if atmos then atmos.Density = v end
-        end,
-    })
-    colAtmos:AddSlider("AtmosOffset", {
-        Title = "Offset",
-        Min = 0, Max = 1, Default = LC.AtmosOffset, Rounding = 2,
-        Callback = function(v)
-            LC.AtmosOffset = v
-            local atmos = Lighting:FindFirstChildOfClass("Atmosphere")
-            if atmos then atmos.Offset = v end
-        end,
-    })
-    colAtmos:AddSlider("AtmosHaze", {
-        Title = "Haze",
-        Min = 0, Max = 10, Default = LC.AtmosHaze, Rounding = 1,
-        Callback = function(v)
-            LC.AtmosHaze = v
-            local atmos = Lighting:FindFirstChildOfClass("Atmosphere")
-            if atmos then atmos.Haze = v end
-        end,
-    })
-    colAtmos:AddSlider("AtmosGlare", {
-        Title = "Glare",
-        Min = 0, Max = 1, Default = LC.AtmosGlare, Rounding = 2,
-        Callback = function(v)
-            LC.AtmosGlare = v
-            local atmos = Lighting:FindFirstChildOfClass("Atmosphere")
-            if atmos then atmos.Glare = v end
-        end,
-    })
-    colAtmos:AddColorpicker("AtmosColor", {
-        Title = "Color",
-        Default = LC.AtmosColor,
-        Callback = function(v)
-            LC.AtmosColor = v
-            local atmos = Lighting:FindFirstChildOfClass("Atmosphere")
-            if atmos then atmos.Color = v end
-        end,
-    })
-    colAtmos:AddColorpicker("AtmosDecay", {
-        Title = "Decay",
-        Default = LC.AtmosDecay,
-        Callback = function(v)
-            LC.AtmosDecay = v
-            local atmos = Lighting:FindFirstChildOfClass("Atmosphere")
-            if atmos then atmos.Decay = v end
-        end,
-    })
-
-    SecLighting:AddSpace({ Height = 15 })
-
-    local colSunRay = SecLighting:AddCollapsibleSection("Sun Rays", "solar/sun-bold", false)
-
-    colSunRay:AddToggle("SunRayEnabled", {
-        Title = "Enable Sun Rays",
-        Default = LC.SunRayEnabled,
-        Callback = function(v)
-            LC.SunRayEnabled = v
-            local sr = Lighting:FindFirstChildOfClass("SunRaysEffect")
-            if v then
-                if not sr then
-                    sr = Instance.new("SunRaysEffect")
-                    sr.Name = "SunRaysEffect"
-                    sr.Parent = Lighting
-                end
-                sr.Intensity = LC.SunRayIntensity
-                sr.Spread = LC.SunRaySpread
-            else
-                if sr then sr:Destroy() end
-            end
-        end,
-    })
-    colSunRay:AddSlider("SunRayIntensity", {
-        Title = "Intensity",
-        Min = 0, Max = 1, Default = LC.SunRayIntensity, Rounding = 2,
-        Callback = function(v)
-            LC.SunRayIntensity = v
-            local sr = Lighting:FindFirstChildOfClass("SunRaysEffect")
-            if sr then sr.Intensity = v end
-        end,
-    })
-    colSunRay:AddSlider("SunRaySpread", {
-        Title = "Spread",
-        Min = 0, Max = 1, Default = LC.SunRaySpread, Rounding = 2,
-        Callback = function(v)
-            LC.SunRaySpread = v
-            local sr = Lighting:FindFirstChildOfClass("SunRaysEffect")
-            if sr then sr.Spread = v end
-        end,
-    })
-
-    SecLighting:AddSpace({ Height = 15 })
-
-    local colCC = SecLighting:AddCollapsibleSection("Color Correction", "solar/eye-bold", false)
-
-    colCC:AddToggle("CCEnabled", {
-    Title = "Enable Color Correction",
-    Default = LC.CcEnabled,
-    Callback = function(v)
-        LC.CcEnabled = v
-        local cc = Lighting:FindFirstChildOfClass("ColorCorrectionEffect")
-        if v then
-            if not cc then
-                cc = Instance.new("ColorCorrectionEffect")
-                cc.Name = "ColorCorrectionEffect"
-                cc.Parent = Lighting
-            end
-            cc.TintColor  = LC.CcTintColor
-            cc.Brightness = LC.CcBrightness
-            cc.Contrast   = LC.CcContrast
-            cc.Saturation = LC.CcSaturation
-        else
-            if cc then cc:Destroy() end
-        end
-    end,
-})
-    colCC:AddSlider("CCBrightness", {
-        Title = "Brightness",
-        Min = -1, Max = 1, Default = LC.CcBrightness, Rounding = 2,
-        Callback = function(v)
-            LC.CcBrightness = v
-            local cc = Lighting:FindFirstChildOfClass("ColorCorrectionEffect")
-            if cc then cc.Brightness = v end
-        end,
-    })
-    colCC:AddSlider("CCContrast", {
-        Title = "Contrast",
-        Min = -1, Max = 1, Default = LC.CcContrast, Rounding = 2,
-        Callback = function(v)
-            LC.CcContrast = v
-            local cc = Lighting:FindFirstChildOfClass("ColorCorrectionEffect")
-            if cc then cc.Contrast = v end
-        end,
-    })
-    colCC:AddSlider("CCSaturation", {
-        Title = "Saturation",
-        Min = -1, Max = 1, Default = LC.CcSaturation, Rounding = 2,
-        Callback = function(v)
-            LC.CcSaturation = v
-            local cc = Lighting:FindFirstChildOfClass("ColorCorrectionEffect")
-            if cc then cc.Saturation = v end
-        end,
-    })
-    colCC:AddColorpicker("CCTintColor", {
-        Title = "Tint Color",
-        Default = LC.CcTintColor,
-        Callback = function(v)
-            LC.CcTintColor = v
-            local cc = Lighting:FindFirstChildOfClass("ColorCorrectionEffect")
-            if cc then cc.TintColor = v end
-        end,
-    })
-
-    SecLighting:AddSpace({ Height = 15 })
-
-    local colBloom = SecLighting:AddCollapsibleSection("Bloom", "solar/star-shine-bold", false)
-
-    colBloom:AddToggle("BloomEnabled", {
-    Title = "Enable Bloom",
-    Default = LC.BloomEnabled,
-    Callback = function(v)
-        LC.BloomEnabled = v
-        local bl = Lighting:FindFirstChildOfClass("BloomEffect")
-        if v then
-            if not bl then
-                bl = Instance.new("BloomEffect")
-                bl.Name = "BloomEffect"
-                bl.Parent = Lighting
-            end
-            bl.Intensity = LC.BloomIntensity
-            bl.Size      = LC.BloomSize
-            bl.Threshold = LC.BloomThreshold
-        else
-            if bl then bl:Destroy() end
-        end
-    end,
-})
-    colBloom:AddSlider("BloomIntensity", {
-        Title = "Intensity",
-        Min = 0, Max = 1, Default = LC.BloomIntensity, Rounding = 2,
-        Callback = function(v)
-            LC.BloomIntensity = v
-            local bl = Lighting:FindFirstChildOfClass("BloomEffect")
-            if bl then bl.Intensity = v end
-        end,
-    })
-    colBloom:AddSlider("BloomSize", {
-        Title = "Size",
-        Min = 0, Max = 56, Default = LC.BloomSize, Rounding = 0,
-        Callback = function(v)
-            LC.BloomSize = v
-            local bl = Lighting:FindFirstChildOfClass("BloomEffect")
-            if bl then bl.Size = v end
-        end,
-    })
-    colBloom:AddSlider("BloomThreshold", {
-        Title = "Threshold",
-        Min = 0, Max = 1, Default = LC.BloomThreshold, Rounding = 2,
-        Callback = function(v)
-            LC.BloomThreshold = v
-            local bl = Lighting:FindFirstChildOfClass("BloomEffect")
-            if bl then bl.Threshold = v end
-        end,
-    })
-
-    SecLighting:AddSpace({ Height = 15 })
-
-    local colClouds = SecLighting:AddCollapsibleSection("Clouds", "solar/clouds-bold", false)
-
-    colClouds:AddToggle("CloudsEnabled", {
-    Title = "Enable Clouds",
-    Default = LC.CloudsEnabled,
-    Callback = function(v)
-        LC.CloudsEnabled = v
-        local terrain = workspace:FindFirstChildOfClass("Terrain")
-        if not terrain then return end
-        local clouds = terrain:FindFirstChildOfClass("Clouds")
-        if v then
-            if not clouds then
-                clouds = Instance.new("Clouds")
-                clouds.Parent = terrain
-            end
-            clouds.Color   = LC.CloudsColor
-            clouds.Density = LC.CloudsDensity
-            clouds.Cover   = LC.CloudsCover
-        else
-            if clouds then clouds:Destroy() end
-        end
-    end,
-})
-    colClouds:AddSlider("CloudsDensity", {
-        Title = "Density",
-        Min = 0, Max = 1, Default = LC.CloudsDensity, Rounding = 2,
-        Callback = function(v)
-            LC.CloudsDensity = v
-            local terrain = workspace:FindFirstChildOfClass("Terrain")
-            if not terrain then return end
-            local clouds = terrain:FindFirstChildOfClass("Clouds")
-            if clouds then clouds.Density = v end
-        end,
-    })
-    colClouds:AddSlider("CloudsCover", {
-        Title = "Cover",
-        Min = 0, Max = 1, Default = LC.CloudsCover, Rounding = 2,
-        Callback = function(v)
-            LC.CloudsCover = v
-            local terrain = workspace:FindFirstChildOfClass("Terrain")
-            if not terrain then return end
-            local clouds = terrain:FindFirstChildOfClass("Clouds")
-            if clouds then clouds.Cover = v end
-        end,
-    })
-    colClouds:AddColorpicker("CloudsColor", {
-        Title = "Color",
-        Default = LC.CloudsColor,
-        Callback = function(v)
-            LC.CloudsColor = v
-            local terrain = workspace:FindFirstChildOfClass("Terrain")
-            if not terrain then return end
-            local clouds = terrain:FindFirstChildOfClass("Clouds")
-            if clouds then clouds.Color = v end
-        end,
-    })
-
-    SecLighting:AddSpace({ Height = 15 })
-
-    local colBlur = SecLighting:AddCollapsibleSection("Blur", "solar/layers-minimalistic-bold", false)
-
-    colBlur:AddToggle("BlurEnabled", {
-    Title = "Enable Blur",
-    Default = LC.BlurEnabled,
-    Callback = function(v)
-        LC.BlurEnabled = v
-        local blur = Lighting:FindFirstChildOfClass("BlurEffect")
-        if v then
-            if not blur then
-                blur = Instance.new("BlurEffect")
-                blur.Name = "BlurEffect"
-                blur.Parent = Lighting
-            end
-            blur.Size = LC.BlurSize
-        else
-            if blur then blur:Destroy() end
-        end
-    end,
-})
-    colBlur:AddSlider("BlurSize", {
-        Title = "Size",
-        Min = 0, Max = 56, Default = LC.BlurSize, Rounding = 0,
-        Callback = function(v)
-            LC.BlurSize = v
-            local blur = Lighting:FindFirstChildOfClass("BlurEffect")
-            if blur then blur.Size = v end
-        end,
-    })
-
-    SecLighting:AddSpace({ Height = 15 })
-
-    local colDoF = SecLighting:AddCollapsibleSection("Depth Of Field", "solar/camera-bold", false)
-
-    colDoF:AddToggle("DoFEnabled", {
-    Title = "Enable Depth Of Field",
-    Default = LC.DofEnabled,
-    Callback = function(v)
-        LC.DofEnabled = v
-        local cam = workspace.CurrentCamera
-        local dof = cam:FindFirstChildOfClass("DepthOfFieldEffect")
-        if v then
-            dof = GetOrCreateDoF()
-            dof.FocusDistance = LC.DofFocusDistance
-            dof.InFocusRadius = LC.DofInFocusRadius
-            dof.NearIntensity = LC.DofNearIntensity
-            dof.FarIntensity  = LC.DofFarIntensity
-        else
-            if dof then dof:Destroy() end
-        end
-    end,
-})
-    colDoF:AddSlider("DoFFocusDistance", {
-        Title = "Focus Distance",
-        Min = 0, Max = 150, Default = LC.DofFocusDistance, Rounding = 0,
-        Callback = function(v)
-            LC.DofFocusDistance = v
-            local dof = workspace.CurrentCamera:FindFirstChildOfClass("DepthOfFieldEffect")
-            if dof then dof.FocusDistance = v end
-        end,
-    })
-    colDoF:AddSlider("DoFInFocusRadius", {
-        Title = "In-Focus Radius",
-        Min = 0, Max = 50, Default = LC.DofInFocusRadius, Rounding = 0,
-        Callback = function(v)
-            LC.DofInFocusRadius = v
-            local dof = workspace.CurrentCamera:FindFirstChildOfClass("DepthOfFieldEffect")
-            if dof then dof.InFocusRadius = v end
-        end,
-    })
-    colDoF:AddSlider("DoFNearIntensity", {
-        Title = "Near Intensity",
-        Min = 0, Max = 1, Default = LC.DofNearIntensity, Rounding = 2,
-        Callback = function(v)
-            LC.DofNearIntensity = v
-            local dof = workspace.CurrentCamera:FindFirstChildOfClass("DepthOfFieldEffect")
-            if dof then dof.NearIntensity = v end
-        end,
-    })
-    colDoF:AddSlider("DoFFarIntensity", {
-        Title = "Far Intensity",
-        Min = 0, Max = 1, Default = LC.DofFarIntensity, Rounding = 2,
-        Callback = function(v)
-            LC.DofFarIntensity = v
-            local dof = workspace.CurrentCamera:FindFirstChildOfClass("DepthOfFieldEffect")
-            if dof then dof.FarIntensity = v end
-        end,
-    })
-
-    SecLighting:AddSpace({ Height = 15 })
-    
-    local colFog = SecLighting:AddCollapsibleSection("Fog", "solar/sun-fog-bold", false)
-
-colFog:AddToggle("FogEnabled", {
-    Title = "Enable Fog",
-    Default = false,
-    Callback = function(v)
-        if v then
-            Lighting.FogStart = 0
-            Lighting.FogEnd   = 500
-            Lighting.FogColor = Color3.fromRGB(192, 192, 192)
-        else
-            Lighting.FogStart = 0
-            Lighting.FogEnd   = 100000
-        end
-    end,
-})
-
-colFog:AddSlider("FogStart", {
-    Title = "Fog Start",
-    Min = 0, Max = 2000, Default = 0, Rounding = 0,
-    Callback = function(v)
-        Lighting.FogStart = v
-    end,
-})
-
-colFog:AddSlider("FogEnd", {
-    Title = "Fog End",
-    Min = 0, Max = 5000, Default = 500, Rounding = 0,
-    Callback = function(v)
-        Lighting.FogEnd = v
-    end,
-})
-
-colFog:AddColorpicker("FogColor", {
-    Title = "Fog Color",
-    Default = Color3.fromRGB(192, 192, 192),
-    Callback = function(v)
-        Lighting.FogColor = v
-    end,
-})
-
-    local SecSetTime = visualtab:AddSection("Set Time", "solar/clock-circle-bold")
-    SecSetTime:AddSpace({ Height = 15 })
-
-    local SetTimeInput = ""
-    local SetTimeEnabled = false
-    local SetTimeConnection = nil
-
-    local function ApplyLightingTime(TimeStr)
-        local H, M = TimeStr:match("^(%d+):(%d+)$")
-        H, M = tonumber(H), tonumber(M)
-        if not H or not M or H > 23 or M > 59 then
-            notify("Set Time", "Invalid format! Use HH:MM (e.g. 14:30)")
-            return false
-        end
-        Lighting.TimeOfDay = string.format("%02d:%02d:00", H, M)
-        return true
-    end
-
-    SecSetTime:AddInput("SetTimeInput", {
-        Title = "Time (HH:MM)",
-        Placeholder = "e.g. 14:30",
-        Numeric = false,
-        Finished = false,
-        Callback = function(Value)
-            SetTimeInput = Value
-        end,
-    })
-
-    SecSetTime:AddDivider()
-    SecSetTime:AddSpace({ Height = 15 })
-    SecSetTime:AddDivider()
-
-    SecSetTime:AddButton({
-        Title = "Apply Time",
-        Callback = function()
-            if ApplyLightingTime(SetTimeInput) then
-                notify("Set Time", "Time set to " .. SetTimeInput)
-            end
-        end,
-    })
-
-    SecSetTime:AddToggle("SetTimeLockToggle", {
-        Title = "Lock Time",
-        Description = "Prevent the game from changing the time",
-        Default = false,
-        Callback = function(State)
-            SetTimeEnabled = State
-            if SetTimeConnection then
-                SetTimeConnection:Disconnect()
-                SetTimeConnection = nil
-            end
-            if State then
-                if SetTimeInput == "" then
-                    notify("Set Time", "Enter a time first!")
-                    return
-                end
-                ApplyLightingTime(SetTimeInput)
-                SetTimeConnection = RS.Heartbeat:Connect(function()
-                    if not SetTimeEnabled then return end
-                    local H, M = SetTimeInput:match("^(%d+):(%d+)$")
-                    if H and M then
-                        Lighting.TimeOfDay = string.format("%02d:%02d:00", tonumber(H), tonumber(M))
-                    end
-                end)
-            end
-        end,
-    })
-end
-
 local dumfix = true
 lib.maketoggle("ugly fix",buildtab,function(bool)
 	dumfix = bool
@@ -1195,7 +1127,7 @@ lib.makebutton("Place Block",buildtab,function()
 		local event = (localplr.Character.Build:FindFirstChild("origevent") and localplr.Character.Build.origevent:Invoke(workspace.Terrain, Enum.NormalId.Top, pos, s)) or localplr.Character.Build.Script.Event:FireServer(workspace.Terrain, Enum.NormalId.Top, pos, s)
 		notify("Place Block", "Placed block!")
 	else
-		notify("Place Block", "Btool required!")
+		notify("Place Block", "Btool required!", "Warning")
 	end
 end)
 function listfilesfixed(directory)
@@ -1251,12 +1183,33 @@ local blocks = {}
 local cubehistory = {}
 local historynum = 0
 local historymax = 400
+local historyCountLabel = nil
+local function refreshHistoryCapacity()
+    local ownBuild = workspace:FindFirstChild("Bricks") and workspace.Bricks:FindFirstChild(localplr.Name)
+    local brickCount = 0
+    if ownBuild then
+        for _, item in ipairs(ownBuild:GetChildren()) do
+            if item:IsA("BasePart") then brickCount = brickCount + 1 end
+        end
+    end
+    
+    historymax = math.max(400, brickCount)
+    if historyCountLabel then
+        lib.updatelabel("Current build bricks: " .. tostring(brickCount), historyCountLabel)
+    end
+    for index in pairs(cubehistory) do
+        if index > historymax then cubehistory[index] = nil end
+    end
+    return brickCount
+end
 local cubechild = nil
 local toxifybrick = nil
 local buildingtoxify = false
 if workspace.Bricks:FindFirstChild(localplr.Name) then
+    refreshHistoryCapacity()
 	cubechild = workspace.Bricks[localplr.Name].ChildAdded:Connect(function(child)
 		childcube = child
+		refreshHistoryCapacity()
 		historynum = historynum + 1
 		if historynum > historymax then
 			historynum = 1
@@ -1267,6 +1220,9 @@ if workspace.Bricks:FindFirstChild(localplr.Name) then
 		cubehistory[historynum] = child
 		built = true
 	end)
+    workspace.Bricks[localplr.Name].ChildRemoved:Connect(function()
+        refreshHistoryCapacity()
+    end)
 	for i,child in pairs(workspace.Bricks[localplr.Name]:GetChildren()) do
 	end
 else
@@ -1303,6 +1259,33 @@ normalids[Enum.NormalId.Back] = {Vector3.new(0,0,1),"Z"}
 normalids[Enum.NormalId.Left] = {Vector3.new(-1,0,0),"X"}
 normalids[Enum.NormalId.Bottom] = {Vector3.new(0,-1,0),"Y"}
 normalids[Enum.NormalId.Front] = {Vector3.new(0,0,-1),"Z"}
+function intvec3(v)
+	if not v then return nil end
+	return Vector3.new(math.round(v.X),math.round(v.Y),math.round(v.Z))
+end
+-- Makes every number of a saved build a whole number (rotation matrices only snap when already ~integer)
+function normalizebuild(build)
+	if type(build) ~= "table" then return build end
+	for _, v in ipairs(build) do
+		if type(v) == "table" and not v.isSign then
+			local pp = v.p or v.pos
+			if type(pp) == "table" then
+				for i = 1, 3 do if tonumber(pp[i]) then local h = math.round(pp[i] * 2) / 2; if math.abs(pp[i] - h) < 0.02 then pp[i] = h end end end -- clean float noise only; keep .5 and keep off-grid blocks exact
+				if #pp == 12 then
+					for i = 4, 12 do
+						local r = math.round(pp[i])
+						if math.abs(pp[i] - r) < 0.001 then pp[i] = r end
+					end
+				end
+			end
+			local ss = v.s or v.size
+			if type(ss) == "table" then
+				for i = 1, 3 do if tonumber(ss[i]) then ss[i] = math.max(1, math.round(ss[i])) end end
+			end
+		end
+	end
+	return build
+end
 function roundnum(num,m)
 	return math.round((num - 2) / m) * m + 2
 end
@@ -1311,7 +1294,7 @@ function round(pos,m)
 end
 local wbs = false
 
--- Speed multipliers for collide + sign placement
+
 local COLLIDE_WAIT_MULT = 0.35
 local SIGN_WAIT_MULT    = 0.35
 local function cwait(t) task.wait((t or 0.1) * COLLIDE_WAIT_MULT) end
@@ -1382,9 +1365,9 @@ local function clearCurrentGhostBlockers()
     return true
 end
 
--- ============================================================
--- Sign blocker helper
--- ============================================================
+
+
+
 local function clearBlockersForSign(P, signSize, excludeParts)
     excludeParts = excludeParts or {}
     local pad = 0.05
@@ -1815,9 +1798,9 @@ function buildblock(pos,texture,color,bsize,bsizev3,premadebuild,origmaterial,sp
 	if not s then print(e) end
 end
 
--- ============================================================
--- FACE_NORMALS + grid helpers + sign placement
--- ============================================================
+
+
+
 local FACE_NORMALS = {
     Front  = Vector3.new(0, 0, -1),
     Back   = Vector3.new(0, 0, 1),
@@ -1981,7 +1964,7 @@ local function placeSign(signData, parentPart, materialsTable)
 		pcall(function() localplr.Backpack.Sign.Parent = localplr.Character end)
 	end
 	if not (localplr.Character and localplr.Character:FindFirstChild("Sign")) then
-		notify("Sign", "No Sign tool in Backpack")
+		notify("Sign", "No Sign tool in Backpack", "Warning")
 		return nil
 	end
 	local sign = localplr.Character.Sign
@@ -2144,7 +2127,7 @@ local function placeSign(signData, parentPart, materialsTable)
 			swait(0.5)
 
 			if not tempBlock then
-				notify("Sign", "Could not build temp block")
+				notify("Sign", "Could not build temp block", "Error")
 				if oldprt then oldprt:Destroy(); oldprt = nil end
 				return nil
 			end
@@ -2307,6 +2290,7 @@ lib.makebutton("Build D***",buildtab,function()
 	end
 	stopped = false
 end)
+lib.setpage(buildtab, "Building", "Shapes & Text")
 lib.maketextbox("Build Cube (enter size)",buildtab,function(txt)
 	built = true
 	stopped = false
@@ -2376,6 +2360,7 @@ lib.maketextbox("Build Text (enter in text)",buildtab,function(txt)
 	deletedisplay(displayid)
 end)
 local spmbl = false
+lib.setpage(buildtab, "Troll & Grief", "World Effects")
 lib.maketoggle("Spam blocks at where you are",buildtab,function(bool)
 	spmbl = bool
 	while spmbl do
@@ -2453,10 +2438,8 @@ daurapart.Color = Color3.fromRGB(255,0,0)
 daurapart.Transparency = 1
 daurapart.Size = Vector3.new(daurarange,daurarange,daurarange)
 daurapart.Parent = workspace
-lib.maketextbox("Range of delete aura (studs, default is 35)",buildtab,function(txt)
-	local n = tonumber(txt)
-	if not n then return end
-	daurarange = n
+lib.makeslider("Delete range (stud))",buildtab,1,35,35,function(value)
+	daurarange = math.clamp(math.floor(value + 0.5),1,35)
 	daurapart.Size = Vector3.new(daurarange,daurarange,daurarange)
 end)
 local filter = OverlapParams.new()
@@ -2529,6 +2512,7 @@ local sblock = nil
 local spmsb = false
 local side = Enum.NormalId.Top
 local sides = {"Right","Top","Back","Left","Bottom","Front"}
+lib.setpage(buildtab, "Building", "Block Selection")
 local blocktxt2 = lib.makelabel("No Block Selected",buildtab)
 local ssbox = Instance.new("SurfaceGui")
 ssbox.Parent = game.CoreGui
@@ -2570,7 +2554,6 @@ local ss = true
 lib.maketoggle("Select Side to build on (by clicking)",buildtab,function(bool)
 	ss = bool
 end,true)
-lib.makelabel("Tip: Turn on detailed to make blocks spawn where you are",buildtab)
 lib.maketoggle("Spam selected side of selected block",buildtab,function(bool)
 	spmsb = bool
 	while spmsb do
@@ -2590,7 +2573,7 @@ lib.maketoggle("Spam selected side of selected block",buildtab,function(bool)
 		end
 	end
 end)
-lib.makelabel("Fancy Stuff (change building size to detailed to make stuff smaller)",buildtab)
+lib.setpage(buildtab, "Building", "Shapes & Text")
 local qrcodegen = safeLoad("https://raw.githubusercontent.com/speedata/luaqrcode/refs/heads/master/qrencode.lua", "QRCode")
 if not qrcodegen then
     warn("[TCOE] QRCode library failed to load - 'Build QR Code' disabled.")
@@ -2600,6 +2583,7 @@ local ob = false
 lib.maketoggle("Only build black parts",buildtab,function(bool)
 	ob = bool
 end)
+lib.setpage(buildtab, "Building", "Shapes & Text")
 lib.maketextbox("Build QR Code",buildtab,function(txt)
 	local success,qrcode = qrcodegen.qrcode(tostring(txt))
 	if not success or not qrcode then return end
@@ -2838,12 +2822,22 @@ function saveblock(bl)
 			blockdata.s = {bl.Size.X,bl.Size.Y,bl.Size.Z}
 		else
 		end
+		for i = 1, 3 do local h = math.round(blockdata.p[i] * 2) / 2; if math.abs(blockdata.p[i] - h) < 0.02 then blockdata.p[i] = h end end -- clean float noise only; keep .5 and keep off-grid blocks exact
+		if #blockdata.p == 12 then
+			for i = 4, 12 do
+				local r = math.round(blockdata.p[i])
+				if math.abs(blockdata.p[i] - r) < 0.001 then blockdata.p[i] = r end
+			end
+		end
+		if blockdata.s then
+			for i = 1, 3 do blockdata.s[i] = math.max(1, math.round(blockdata.s[i])) end
+		end
 		blockdata.m = materials[bl.Material] or "plastic"
 		blockdata.o = bl.Material.Name
 		blockdata.sp = {}
 		for i,v in pairs(bl:GetChildren()) do
 			if v.Name == "Spray" then
-				local escaped = (v.Label.Text:gsub('"','\\"'))
+				local escaped = (v.Label.Text:gsub('"','\"'))
 				table.insert(blockdata.sp,{v.Face.Name,v.Image.Image,escaped})
 			end
 		end
@@ -2905,11 +2899,22 @@ local buildhighlight = Instance.new("Highlight")
 buildhighlight.Parent = game.CoreGui
 buildhighlight.FillColor = Color3.fromRGB(0,255,0)
 buildhighlight.FillTransparency = .9
+buildhighlight.OutlineColor = Color3.fromRGB(0,255,0)
+buildhighlight.OutlineTransparency = 0
+buildhighlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+buildhighlight.Enabled = false
+function refreshplrhighlight()
+	local target = plrbuild
+	if target and not target:IsDescendantOf(workspace) then target = nil end
+	buildhighlight.Adornee = target
+	buildhighlight.Enabled = hpb and target ~= nil
+end
 function upddd()
 	table.sort(plrnames,function(a,b)
 		return a:lower() < b:lower()
 	end)
 	lib.updatedropdown(plrdropdown,plrnames)
+	lib.updatedropdown(plrdropdown2,plrnames)
 end
 function dobricks(f,nud)
 	plrbuilds[f.Name] = f
@@ -2956,6 +2961,7 @@ local function showBrickCount(title, count)
 	notify(title, "Found " .. count .. " brick(s)")
 end
 
+lib.setpage(bsaltab, "Save & Preview", "Brick Count")
 lib.makebutton("Check bricks (own)", bsaltab, function()
 	local myModel = workspace.Bricks:FindFirstChild(localplr.Name)
 	local count = myModel and countBricksInModel(myModel) or 0
@@ -2966,32 +2972,81 @@ lib.makebutton("Check server bricks", bsaltab, function()
 	local count = countBricksInModel(workspace.Bricks)
 	showBrickCount("Server Builds", count)
 end)
-lib.makebutton("Check player bricks", bsaltab, function()
-	if plrbuild then
-		local count = countBricksInModel(plrbuild)
-		local name = "Selected Player"
-		if plrbuild == workspace.Bricks then
-			name = "Server"
+do -- scoped so these locals do not count toward the 200-local limit of the main chunk
+local plrlist
+local seenplrs = {}
+local idlookup = {}
+local function remember(p)
+	seenplrs[p.Name] = {UserId = p.UserId, Display = p.DisplayName}
+end
+for _, p in ipairs(game.Players:GetPlayers()) do remember(p) end
+table.insert(conn,game.Players.PlayerAdded:Connect(remember))
+table.insert(conn,game.Players.PlayerRemoving:Connect(remember))
+-- UserId lookup for players who already left (cached, retried after 60s on failure)
+local function lookupId(name)
+	local rec = idlookup[name]
+	if rec then
+		if rec.id then return rec.id end
+		if rec.pending or os.clock() - rec.t < 60 then return nil end
+	end
+	rec = {pending = true, t = os.clock()}
+	idlookup[name] = rec
+	task.spawn(function()
+		local ok, id = pcall(function() return game.Players:GetUserIdFromNameAsync(name) end)
+		if ok and type(id) == "number" then
+			rec.id = id
 		else
-			for _, p in ipairs(game.Players:GetPlayers()) do
-				if p.Name == plrbuild.Name then
-					name = p.DisplayName .. "/" .. p.Name
-					break
-				end
+			rec.pending = false
+			rec.t = os.clock()
+		end
+	end)
+	return nil
+end
+local function scanPlayerBuilds()
+	local entries = {}
+	for _, p in ipairs(game.Players:GetPlayers()) do remember(p) end
+	for _, model in ipairs(workspace.Bricks:GetChildren()) do
+		if model:IsA("Model") or model:IsA("Folder") then
+			local count = countBricksInModel(model)
+			if count > 0 then
+				local plr = game.Players:FindFirstChild(model.Name)
+				local ingame = plr ~= nil and plr:IsA("Player")
+				local info = seenplrs[model.Name]
+				local uid = (info and info.UserId) or lookupId(model.Name)
+				table.insert(entries,{Key=model.Name,UserId=uid,Display=info and info.Display,Name=model.Name,Count=count,InGame=ingame})
 			end
 		end
-		showBrickCount(name .. "'s Build", count)
-	else
-		notify("No Selection", "Select a player build first using the dropdown")
 	end
+	table.sort(entries,function(a,b)
+		if a.InGame ~= b.InGame then return a.InGame end
+		if a.Count ~= b.Count then return a.Count > b.Count end
+		return a.Name:lower() < b.Name:lower()
+	end)
+	if plrlist then
+		plrlist.SetEntries(entries)
+		local key = plrlist.Get()
+		if key then plrbuild = workspace.Bricks:FindFirstChild(key) end
+		refreshplrhighlight()
+	end
+end
+plrlist = lib.makeplayerlist("Players With Builds (scan every 5s)",bsaltab,function(key)
+	plrbuild = key and workspace.Bricks:FindFirstChild(key) or nil
+	refreshplrhighlight()
 end)
-plrdropdown = lib.makedropdown("Select Player",bsaltab,{},function(sel)
-	plrbuild = plrbuilds[sel]
-	buildhighlight.Adornee = plrbuild
-end)
-upddd()
+plrlistctl = plrlist
+if plrlist then
+	task.spawn(function()
+		while plrlist.IsAlive() do
+			pcall(scanPlayerBuilds)
+			task.wait(5)
+		end
+	end)
+end
+end
+
+lib.setpage(bsaltab, "Save & Preview", "Save Build")
 lib.makelabel("",bsaltab)
-lib.maketextbox("Set Build Name",bsaltab,function(txt)
+lib.maketextboxlive("Set Build Name",bsaltab,function(txt)
 	local ok, err = pcall(function()
 		savebuildname = validate(txt)
 	end)
@@ -2999,7 +3054,7 @@ lib.maketextbox("Set Build Name",bsaltab,function(txt)
 		notify("Build Name Set", "Saved as: " .. tostring(savebuildname))
 	else
 		warn("[TCOE] Set Build Name error:", err)
-		notify("Build Name Error", tostring(err))
+		notify("Build Name Error", tostring(err), "Error")
 	end
 end)
 
@@ -3009,7 +3064,7 @@ lib.makebutton("Save Build",bsaltab,function()
 
 		local myModel = workspace.Bricks:FindFirstChild(localplr.Name)
 		if not myModel then
-			notify("Save Build", "No build to save")
+			notify("Save Build", "No build to save", "Warning")
 			return
 		end
 		local builddata = {}
@@ -3072,13 +3127,14 @@ lib.makebutton("Save Build",bsaltab,function()
 			local savebuildamt = savebuildnames[savebuildname]
 			savebuildname2 = savebuildname..tostring(savebuildamt)
 		end
+		refreshHistoryCapacity()
 		writefile("TheChosenOneBuilds/"..savebuildname2..".json", http:JSONEncode(builddata))
 		updatedropdown()
 		notify("Save Build", "Saved: "..savebuildname2.." ("..#builddata.." bricks)")
 	end)
 	if not ok then
 		warn("[TCOE] Save Build error:", err)
-		notify("Save Build Error", tostring(err))
+		notify("Save Build Error", tostring(err), "Error")
 	end
 end)
 
@@ -3100,26 +3156,28 @@ lib.makebutton("Save Server Builds",bsaltab,function()
 			local savebuildamt = savebuildnames[savebuildname]
 			savebuildname2 = savebuildname..tostring(savebuildamt)
 		end
+		refreshHistoryCapacity()
 		writefile("TheChosenOneBuilds/"..savebuildname2..".json",http:JSONEncode(builddata))
 		updatedropdown()
 		notify("Save Server Builds", "Saved: "..savebuildname2.." ("..#builddata.." bricks)")
 	end)
 	if not ok then
 		warn("[TCOE] Save Server Builds error:", err)
-		notify("Save Server Builds Error", tostring(err))
+		notify("Save Server Builds Error", tostring(err), "Error")
 	end
 end)
 
-plrdropdown = lib.makedropdown("Select Player",bsaltab,{},function(sel)
+plrdropdown2 = lib.makedropdown("Select Player",bsaltab,{},function(sel)
 	plrbuild = plrbuilds[sel]
-	buildhighlight.Adornee = plrbuild
+	refreshplrhighlight()
+	if plrlistctl then plrlistctl.Select(plrbuild and plrbuild.Name or nil) end
 end)
 upddd()
 
 lib.makebutton("Save Player Build",bsaltab,function()
 	local ok, err = pcall(function()
 		if not plrbuild then
-			notify("Save Player Build", "Select a player build first")
+			notify("Save Player Build", "Select a player build first", "Warning")
 			return
 		end
 		pcall(function() makefolder("TheChosenOneBuilds") end)
@@ -3138,36 +3196,34 @@ lib.makebutton("Save Player Build",bsaltab,function()
 			local savebuildamt = savebuildnames[savebuildname]
 			savebuildname2 = savebuildname..tostring(savebuildamt)
 		end
+		refreshHistoryCapacity()
 		writefile("TheChosenOneBuilds/"..savebuildname2..".json",http:JSONEncode(builddata))
 		updatedropdown()
 		notify("Save Player Build", "Saved: "..savebuildname2.." ("..#builddata.." bricks)")
 	end)
 	if not ok then
 		warn("[TCOE] Save Player Build error:", err)
-		notify("Save Player Build Error", tostring(err))
+		notify("Save Player Build Error", tostring(err), "Error")
 	end
 end)
 
+
 lib.maketoggle("Highlight Player Build",bsaltab,function(value)
 	hpb = value
-	if not hpb then
-		buildhighlight.FillTransparency = 1
-		buildhighlight.OutlineTransparency = 1
-	else
-		buildhighlight.FillTransparency = .9
-		buildhighlight.OutlineTransparency = 0
-	end
+	refreshplrhighlight()
 end,true)
 
-lib.makelabel("",bsaltab)
-builddropdown = lib.makedropdown("Saved Builds",bsaltab,{},function(sel)
+lib.setpage(bsaltab, "Load & Manage", "Saved Builds")
+builddropdown = lib.makedropdown("Saved Builds",bsaltab,getfn(),function(sel)
 	if not sel or sel == "" then return end
 	local path = "TheChosenOneBuilds/"..sel..".json"
 	local okRead, content = pcall(readfile, path)
 	if not okRead or not content then return end
 	local okDecode, data = pcall(function() return http:JSONDecode(content) end)
 	if not okDecode or not data then return end
+	normalizebuild(data)
 	selectedbuild = {sel, data}
+	pcall(updateTransformFields)
 end)
 lib.makebutton("Load Save",bsaltab,function()
 	if not selectedbuild then return end
@@ -3188,7 +3244,7 @@ lib.makebutton("Load Save",bsaltab,function()
 		local posses = v.p or v.pos
 		if posses then
 			local args = {}
-			args[1] = CFrame.new(posses[1],posses[2],posses[3]).Position + gizmoOffset
+			args[1] = Vector3.new(posses[1],posses[2],posses[3]) + intvec3(gizmoOffset)
 			args[2] = v.m or v.mat
 			args[3] = Color3.fromRGB(table.unpack(v.c or v.color))
 			if v.s or v.size then args[5] = Vector3.new(table.unpack(v.s or v.size)) end
@@ -3241,31 +3297,28 @@ lib.makebutton("Load Save",bsaltab,function()
 end)
 lib.makebutton("Delete Save", bsaltab, function()
     if not selectedbuild then
-        notify("Delete Save", "No save selected")
+        notify("Delete Save", "No save selected", "Warning")
         return
     end
-    Window:Dialog({
+    delfile("TheChosenOneBuilds/" .. selectedbuild[1] .. ".json")
+    notify("Delete Save", "Deleted: " .. tostring(selectedbuild[1]))
+    selectedbuild = nil
+    updatedropdown()
+end, {
+    Confirm = {
         Title = "Delete Save?",
-        Content = "Are you sure you want to delete: " .. tostring(selectedbuild[1]) .. " ?",
-        Buttons = {
-            {
-                Title = "Yes",
-                Callback = function()
-                    delfile("TheChosenOneBuilds/" .. selectedbuild[1] .. ".json")
-                    notify("Delete Save", "Deleted: " .. tostring(selectedbuild[1]))
-                    selectedbuild = nil
-                    updatedropdown()
-                end,
-            },
-            { Title = "No" },
-        },
-    })
-end)
+        Description = "Are you sure you want to delete the selected save?",
+        Yes = "Delete",
+        No = "Cancel",
+        Danger = true,
+    },
+})
 lib.makebutton("Stop Building",bsaltab,function()
 	stopped = true
 end) lib.makebutton("Skip Block", bsaltab, function()
 	skipblock = true
 end)
+lib.setpage(bsaltab, "Load & Manage", "Preview Controls")
 lib.makebutton("Display Whole Build (might lag, only you see)",bsaltab,function()
 	if selectedbuild~=nil then
 		local build=getbuild()
@@ -3309,8 +3362,9 @@ lib.makebutton("Display Whole Build (might lag, only you see)",bsaltab,function(
 				end
 			end
 			prttable=laggyparttable
-			gizmoPivotCenter=getPreviewCenter()
-			updateTransformFields()
+			gizmoPivotCenter=intvec3(getPreviewCenter())
+			gizmoOffset=intvec3(gizmoOffset) or Vector3.new(0,0,0)
+			lib.applyPositionOffsetToPreview()
 			createAxisGizmo()
 		end
 	end
@@ -3445,19 +3499,12 @@ function optimizebuilds()
 	end
 end
 local offsetgizmo = nil
-local gizmoDragging = false
-local gizmoAxis = nil
-local gizmoDragStartOffset = Vector3.new(0,0,0)
-local gizmoDragStartHit = nil
-local gizmoDragStartCenter = nil
-local gizmoDragStartCFrames = {}
-local gizmoDragStartGizmoCFrames = {}
-local gizmoConnections = {}
-local gizmoTouchInput = nil
 local positionBoxes = {}
 
 local function roundTransformNumber(n)
-	return math.round(n * 100) / 100
+	local r = math.round(n) -- show whole numbers only
+	if r == 0 then r = 0 end -- avoid "-0"
+	return r
 end
 
 local updatingTransformFields = false
@@ -3467,7 +3514,8 @@ updateTransformFields = function()
 	updatingTransformFields = true
 
 	local ok, err = pcall(function()
-		local worldPosition = gizmoPivotCenter and (gizmoPivotCenter + gizmoOffset) or gizmoOffset
+		local base = intvec3(gizmoPivotCenter or getPreviewCenter() or Vector3.new(0,0,0))
+		local worldPosition = base + gizmoOffset
 		if positionBoxes.X then positionBoxes.X.Text=tostring(roundTransformNumber(worldPosition.X)) end
 		if positionBoxes.Y then positionBoxes.Y.Text=tostring(roundTransformNumber(worldPosition.Y)) end
 		if positionBoxes.Z then positionBoxes.Z.Text=tostring(roundTransformNumber(worldPosition.Z)) end
@@ -3477,9 +3525,86 @@ updateTransformFields = function()
 	if not ok then warn("Better Extra Transform UI update error:", err) end
 end
 
+-- Build position = exact centre of the build's bounding box as it is saved/loaded (NOT rounded),
+-- same value the preview parts give at offset 0. The build is only ever moved by whole-stud offsets.
 getPreviewCenter = function()
-	if gizmoPivotCenter then return gizmoPivotCenter + gizmoOffset end
-	if not prttable or #prttable==0 then return nil end
+	local build = selectedbuild and selectedbuild[2]
+	if type(build) ~= "table" then return nil end
+	local function scan(includeSigns)
+		local mn = Vector3.new(math.huge, math.huge, math.huge)
+		local mx = Vector3.new(-math.huge, -math.huge, -math.huge)
+		local found = false
+		for _, v in ipairs(build) do
+			if type(v) == "table" and (includeSigns or not v.isSign) then
+				local pp = v.p or v.pos
+				if type(pp) == "table" and tonumber(pp[1]) and tonumber(pp[2]) and tonumber(pp[3]) then
+					local ss = v.s or v.size
+					local size, c
+					if type(ss) == "table" then
+						size = Vector3.new(ss[1], ss[2], ss[3])
+						c = Vector3.new(pp[1] + size.X/2 - 0.5, pp[2] + size.Y/2 - 0.5, pp[3] + size.Z/2 - 0.5)
+					else
+						size = Vector3.new(mult, mult, mult)
+						c = Vector3.new(pp[1], pp[2], pp[3])
+					end
+					found = true
+					local h = size / 2
+					mn = Vector3.new(math.min(mn.X, c.X - h.X), math.min(mn.Y, c.Y - h.Y), math.min(mn.Z, c.Z - h.Z))
+					mx = Vector3.new(math.max(mx.X, c.X + h.X), math.max(mx.Y, c.Y + h.Y), math.max(mx.Z, c.Z + h.Z))
+				end
+			end
+		end
+		if found then return (mn + mx) / 2 end
+		return nil
+	end
+	return scan(false) or scan(true)
+end
+
+function lib.applyPositionOffsetToPreview()
+	gizmoOffset = intvec3(gizmoOffset) or Vector3.new(0,0,0)
+	if prttable and #prttable>0 then
+		local movement=CFrame.new(gizmoOffset)
+		for i,v in ipairs(prttable) do
+			local base=previewBaseCFrames[i]
+			if v and v.Parent and base then
+				v.CFrame=movement*base
+			end
+		end
+		if offsetgizmo and offsetgizmo.anchor and offsetgizmo.anchor.Parent then
+			offsetgizmo.anchor.CFrame=CFrame.new(offsetgizmo.base+gizmoOffset)
+		end
+	end
+	updateTransformFields()
+end
+
+local function setPositionAxis(axis,value)
+	if lib.positionLocked then updateTransformFields() return end
+	value=tonumber(value)
+	if not value or value ~= value or value == math.huge or value == -math.huge then return end
+	value = math.round(value)
+	local base = intvec3(gizmoPivotCenter or getPreviewCenter() or Vector3.new(0,0,0))
+	local off = gizmoOffset
+	-- shown position = whole-number reference (rounded load position) + whole-stud offset
+	if axis=="X" then off=Vector3.new(value-base.X,off.Y,off.Z)
+	elseif axis=="Y" then off=Vector3.new(off.X,value-base.Y,off.Z)
+	else off=Vector3.new(off.X,off.Y,value-base.Z) end
+	gizmoOffset=off
+	lib.applyPositionOffsetToPreview()
+end
+
+destroyOffsetGizmo = function()
+	local g=offsetgizmo
+	offsetgizmo=nil
+	if g then
+		for _,o in ipairs(g.objects) do pcall(function() o:Destroy() end) end
+	end
+end
+
+-- Move gizmo: Roblox's built-in arrow Handles on the faces of the build's bounding box.
+-- Dragging snaps to whole studs (1 stud steps) and works with mouse and touch.
+createAxisGizmo = function()
+	destroyOffsetGizmo()
+	if not prttable or #prttable==0 then return end
 	local minv=Vector3.new(math.huge,math.huge,math.huge)
 	local maxv=Vector3.new(-math.huge,-math.huge,-math.huge)
 	local valid=false
@@ -3492,327 +3617,92 @@ getPreviewCenter = function()
 			maxv=Vector3.new(math.max(maxv.X,p.X+half.X),math.max(maxv.Y,p.Y+half.Y),math.max(maxv.Z,p.Z+half.Z))
 		end
 	end
-	if not valid then return nil end
-	return (minv+maxv)/2
+	if not valid then return end
+	local center=(minv+maxv)/2
+	local anchor=Instance.new("Part")
+	anchor.Name="BuildMoveHandlesAnchor"
+	anchor.Anchored=true
+	anchor.CanCollide=false
+	anchor.CanQuery=false
+	anchor.CanTouch=false
+	anchor.CastShadow=false
+	anchor.Transparency=1
+	anchor.Size=Vector3.new(math.max(maxv.X-minv.X,4),math.max(maxv.Y-minv.Y,4),math.max(maxv.Z-minv.Z,4))
+	anchor.CFrame=CFrame.new(center)
+	anchor.Parent=workspace.CurrentCamera or workspace
+	local objects={anchor}
+	local function addHandles(color,faces)
+		local h=Instance.new("Handles")
+		h.Adornee=anchor
+		h.Style=Enum.HandlesStyle.Movement
+		h.Faces=Faces.new(table.unpack(faces))
+		h.Color3=color
+		h.Visible=not lib.positionLocked
+		h.Parent=game:GetService("CoreGui")
+		objects[#objects+1]=h
+		local startOffset=nil
+		h.MouseButton1Down:Connect(function() if lib.positionLocked then return end startOffset=gizmoOffset end)
+		h.MouseDrag:Connect(function(face,distance)
+			if lib.positionLocked or not startOffset then return end
+			gizmoOffset=startOffset+Vector3.FromNormalId(face)*math.round(distance)
+			lib.applyPositionOffsetToPreview()
+		end)
+		h.MouseButton1Up:Connect(function() startOffset=nil end)
+	end
+	addHandles(Color3.fromRGB(235,85,85),{Enum.NormalId.Right,Enum.NormalId.Left})
+	addHandles(Color3.fromRGB(95,215,120),{Enum.NormalId.Top,Enum.NormalId.Bottom})
+	addHandles(Color3.fromRGB(100,150,235),{Enum.NormalId.Front,Enum.NormalId.Back})
+	offsetgizmo={anchor=anchor,objects=objects,base=center-gizmoOffset}
 end
 
-local function applyPositionOffsetToPreview()
-	if not prttable or #prttable==0 or not gizmoPivotCenter then return end
-	local movement=CFrame.new(gizmoOffset)
-	for i,v in ipairs(prttable) do
-		local base=previewBaseCFrames[i]
-		if v and v.Parent and base then
-			v.CFrame=movement*base
-		end
-	end
-	updateTransformFields()
-end
-
-local function setPositionAxis(axis,value)
-	value=tonumber(value)
-	if not value then return end
-    value = math.floor(value * 2 + 0.5) / 2
-	local base = gizmoPivotCenter or Vector3.new(0,0,0)
-	local worldPosition = gizmoPivotCenter and (gizmoPivotCenter + gizmoOffset) or gizmoOffset
-	if axis=="X" then worldPosition=Vector3.new(value,worldPosition.Y,worldPosition.Z)
-	elseif axis=="Y" then worldPosition=Vector3.new(worldPosition.X,value,worldPosition.Z)
-	else worldPosition=Vector3.new(worldPosition.X,worldPosition.Y,value) end
-	gizmoOffset=worldPosition-base
-	applyPositionOffsetToPreview()
-	if offsetgizmo then createAxisGizmo() end
-end
-
-local function disconnectGizmoConnections()
-	for _,connection in pairs(gizmoConnections) do
-		if connection then connection:Disconnect() end
-	end
-	gizmoConnections={}
-end
-
-destroyOffsetGizmo = function()
-	gizmoDragging=false
-	gizmoAxis=nil
-	gizmoDragStartHit=nil
-	gizmoDragStartCenter=nil
-	gizmoDragStartCFrames={}
-	gizmoDragStartGizmoCFrames={}
-	gizmoTouchInput=nil
-	disconnectGizmoConnections()
-	if offsetgizmo then offsetgizmo:Destroy(); offsetgizmo=nil end
-end
-
-local function makeGizmoPart(parent,name,size,cframe,color)
-	local p=Instance.new("Part")
-	p.Name=name
-	p.Anchored=true
-	p.CanCollide=false
-	p.CanTouch=false
-	p.CanQuery=true
-	p.CastShadow=false
-	p.Material=Enum.Material.SmoothPlastic
-	p.Color=color
-	p.Transparency=0.08
-	p.Size=size
-	p.CFrame=cframe
-	p.Parent=parent
-	local h=Instance.new("Highlight")
-	h.Adornee=p
-	h.DepthMode=Enum.HighlightDepthMode.AlwaysOnTop
-	h.FillColor=color
-	h.FillTransparency=0.08
-	h.OutlineColor=color
-	h.OutlineTransparency=0
-	h.Parent=parent
-	return p
-end
-
-local function createArrowAxis(folder,key,direction,color,length,thickness,headLength)
-	local center=getPreviewCenter()
-	if not center then return end
-	local rod=makeGizmoPart(folder,"Axis_"..key,Vector3.new(thickness,thickness,length),CFrame.lookAt(center+direction*(length/2),center+direction*(length/2)+direction),color)
-	rod:SetAttribute("GizmoAxis",key)
-	local side=direction:Cross(Vector3.new(0,1,0))
-	if side.Magnitude<.01 then side=direction:Cross(Vector3.new(1,0,0)) end
-	side=side.Unit
-	local up=side:Cross(direction).Unit
-	local tip=center+direction*(length+headLength*.45)
-	local wingCenter=tip-direction*(headLength*.45)
-	for n,sgn in ipairs({1,-1}) do
-		local wingDir=(-direction*.72+up*sgn*.72).Unit
-		local wing=makeGizmoPart(folder,"Arrow_"..key.."_"..n,Vector3.new(thickness*.8,thickness*.8,headLength),CFrame.lookAt(wingCenter+up*sgn*(headLength*.32),wingCenter+up*sgn*(headLength*.32)+wingDir),color)
-		wing:SetAttribute("GizmoAxis",key)
-	end
-end
-
-createAxisGizmo = function()
-	destroyOffsetGizmo()
-	if not prttable or #prttable==0 then return end
-	local center=getPreviewCenter()
-	if not center then return end
-	local folder=Instance.new("Folder")
-	folder.Name="WholeBuildOffsetGizmo"
-	folder.Parent=workspace
-	offsetgizmo=folder
-	local extent=6
-	for _,v in ipairs(prttable) do if v and v.Parent and v:IsA("BasePart") then extent=math.max(extent,v.Size.X,v.Size.Y,v.Size.Z) end end
-	local length=math.clamp(extent*1.5,8,20)
-	local thickness=math.clamp(length*.055,.3,.75)
-	local headLength=math.clamp(length*.28,1.5,3.5)
-	createArrowAxis(folder,"X",Vector3.new(1,0,0),Color3.fromRGB(220,90,90),length,thickness,headLength)
-	createArrowAxis(folder,"Y",Vector3.new(0,1,0),Color3.fromRGB(100,210,120),length,thickness,headLength)
-	createArrowAxis(folder,"Z",Vector3.new(0,0,1),Color3.fromRGB(100,150,225),length,thickness,headLength)
-
-	local uis=game:GetService("UserInputService")
-	local camera
-	local axisDirections={X=Vector3.new(1,0,0),Y=Vector3.new(0,1,0),Z=Vector3.new(0,0,1)}
-	local function rayHit(axis,screenPosition,point)
-		camera=workspace.CurrentCamera
-		if not camera then return end
-		local ray=camera:ScreenPointToRay(screenPosition.X,screenPosition.Y)
-		local normal=axis:Cross(camera.CFrame.LookVector)
-		if normal.Magnitude<.001 then normal=axis:Cross(camera.CFrame.RightVector) end
-		if normal.Magnitude<.001 then return end
-		normal=normal.Unit
-		local den=ray.Direction:Dot(normal)
-		if math.abs(den)<.0001 then return end
-		local t=(point-ray.Origin):Dot(normal)/den
-		if t<0 then return end
-		return ray.Origin+ray.Direction*t
-	end
-	local function pointToSegmentDistance(point,a,b)
-		local ab=b-a
-		local denom=ab:Dot(ab)
-		if denom<.001 then return (point-a).Magnitude end
-		local t=math.clamp((point-a):Dot(ab)/denom,0,1)
-		return (point-(a+ab*t)).Magnitude
-	end
-	local function axisFromScreenPosition(screenPosition)
-		camera=workspace.CurrentCamera
-		local centerNow=getPreviewCenter()
-		if not camera or not centerNow then return end
-		local p2=Vector2.new(screenPosition.X,screenPosition.Y)
-		local isTouch=uis:GetLastInputType()==Enum.UserInputType.Touch
-		local pickRadius=isTouch and 48 or 26
-		local bestAxis=nil
-		local bestDistance=pickRadius
-		for _,key in ipairs({"X","Y","Z"}) do
-			local direction=axisDirections[key]
-			local a=camera:WorldToViewportPoint(centerNow)
-			local b=camera:WorldToViewportPoint(centerNow+direction*(length+headLength+1.5))
-			if a.Z>0 or b.Z>0 then
-				local dist=pointToSegmentDistance(p2,Vector2.new(a.X,a.Y),Vector2.new(b.X,b.Y))
-				if dist<bestDistance then
-					bestDistance=dist
-					bestAxis=direction
-				end
-			end
-		end
-		return bestAxis
-	end
-	local function beginDrag(axis,pos,touch)
-		local centerNow=getPreviewCenter()
-		if not centerNow then return end
-		local hit=rayHit(axis,pos,centerNow)
-		if not hit then return end
-		gizmoDragging=true; gizmoAxis=axis; gizmoTouchInput=touch
-		gizmoDragStartOffset=gizmoOffset; gizmoDragStartHit=hit; gizmoDragStartCenter=centerNow
-		gizmoDragStartCFrames={}
-		for i,v in ipairs(prttable or {}) do if v and v.Parent then gizmoDragStartCFrames[i]=v.CFrame end end
-		gizmoDragStartGizmoCFrames={}
-		for _,v in ipairs(folder:GetChildren()) do if v:IsA("BasePart") then gizmoDragStartGizmoCFrames[v]=v.CFrame end end
-	end
-	local function updateDrag(pos)
-		if not gizmoDragging or not gizmoAxis then return end
-		local hit=rayHit(gizmoAxis,pos,gizmoDragStartCenter)
-		if not hit then return end
-		local delta=(hit-gizmoDragStartHit):Dot(gizmoAxis)
-		local step=1
-		local movement=gizmoAxis*(math.round(delta/step)*step)
-		gizmoOffset=gizmoDragStartOffset+movement
-		for i,v in ipairs(prttable or {}) do
-			local base=gizmoDragStartCFrames[i]
-			if v and v.Parent and base then v.CFrame=base+movement end
-		end
-		for v,base in pairs(gizmoDragStartGizmoCFrames) do if v and v.Parent then v.CFrame=base+movement end end
-		updateTransformFields()
-	end
-	table.insert(gizmoConnections,uis.InputBegan:Connect(function(input,processed)
-		if processed or not offsetgizmo then return end
-		local pos; local touch=nil
-		if input.UserInputType==Enum.UserInputType.MouseButton1 then pos=Vector2.new(mouse.X,mouse.Y)
-		elseif input.UserInputType==Enum.UserInputType.Touch then pos=input.Position; touch=input
-		else return end
-		local axis=axisFromScreenPosition(pos)
-		if axis then beginDrag(axis,pos,touch) end
-	end))
-	table.insert(gizmoConnections,uis.InputChanged:Connect(function(input)
-		if not gizmoDragging then return end
-		if input.UserInputType==Enum.UserInputType.MouseMovement then updateDrag(Vector2.new(input.Position.X,input.Position.Y))
-		elseif input.UserInputType==Enum.UserInputType.Touch and input==gizmoTouchInput then updateDrag(Vector2.new(input.Position.X,input.Position.Y)) end
-	end))
-	table.insert(gizmoConnections,uis.InputEnded:Connect(function(input)
-		if input.UserInputType==Enum.UserInputType.MouseButton1 or (input.UserInputType==Enum.UserInputType.Touch and input==gizmoTouchInput) then
-			gizmoDragging=false; gizmoAxis=nil; gizmoTouchInput=nil
-			updateTransformFields()
-		end
-	end))
-end
-
-lib.makebutton("Load Save",transformtab,function()
-	if not selectedbuild then return end
-	local build = getbuild()
-	if not build then return end
-	if oldprt then oldprt:Destroy() end
-	local normalParts, signParts = {}, {}
-	for _, v in ipairs(build) do
-		if v.isSign then table.insert(signParts, v) else table.insert(normalParts, v) end
-	end
-
-	normalParts = optimizeLoadOrder(normalParts)
-
-	bulkLoading = true
-	for _, v in ipairs(normalParts) do
-		if stopped then break end
-		local posses = v.p or v.pos
-		if posses then
-			local args = {}
-			args[1] = CFrame.new(posses[1],posses[2],posses[3]).Position + gizmoOffset
-			args[2] = v.m or v.mat
-			args[3] = Color3.fromRGB(table.unpack(v.c or v.color))
-			if v.s or v.size then args[5] = Vector3.new(table.unpack(v.s or v.size)) end
-			createpartrepl(args[1],args[5],args[3],swappedmaterials[v.m or v.mat])
-			args[7] = v.o or v.origmat
-			args[8] = v.sp or v.sprayed
-			args[9] = v.a or v.anchored
-			args[10] = v.cc
-			if args[10] == nil then args[10] = v.collide end
-			buildblock(args[1],args[2],args[3],nil,args[5],nil,args[7],args[8],args[9],args[10])
-		end
-	end
-	bulkLoading = false
-	local idMap = {}
-	for _, v in ipairs(build) do if v.id then idMap[v.id] = v end end
-	local function getDepth(v)
-		local d, pid, guard = 1, v.parentId, 0
-		while pid and idMap[pid] and guard < 30 do d = d + 1; pid = idMap[pid].parentId; guard = guard + 1 end
-		return d
-	end
-	table.sort(signParts, function(a, b) return getDepth(a) < getDepth(b) end)
-	local idToPart = {}
-	for _, v in ipairs(signParts) do
-		if stopped then break end
-		local pCopy = v.p or v.pos
-		if pCopy and #pCopy == 12 then
-			local cf = CFrame.new(table.unpack(pCopy)) + gizmoOffset
-			v._worldPos = cf.Position
-		elseif pCopy and #pCopy == 3 then
-			local size = v.s or v.size or {mult,mult,mult}
-			v._worldPos = Vector3.new(
-				pCopy[1] + size[1]/2 - 0.5 + gizmoOffset.X,
-				pCopy[2] + size[2]/2 - 0.5 + gizmoOffset.Y,
-				pCopy[3] + size[3]/2 - 0.5 + gizmoOffset.Z
-			)
-		end
-		local parentPart = nil
-		if v.parentId and idToPart[v.parentId] then parentPart = idToPart[v.parentId] end
-		local signPart = placeSign(v, parentPart, materials)
-		if signPart and v.id then idToPart[v.id] = signPart end
-	end
-	stopped = false
-end)
-
-lib.makebutton("Stop Building",transformtab,function()
-	stopped = true
-end)
-
-lib.makelabel("Position (World Coordinates)",transformtab)
-positionBoxes.X=lib.maketextbox("Position X",transformtab,function(txt) setPositionAxis("X",txt) end)
-positionBoxes.Y=lib.maketextbox("Position Y",transformtab,function(txt) setPositionAxis("Y",txt) end)
-positionBoxes.Z=lib.maketextbox("Position Z",transformtab,function(txt) setPositionAxis("Z",txt) end)
-lib.makebutton("Reset Position",transformtab,function()
-	gizmoOffset=Vector3.new(0,0,0)
-	applyPositionOffsetToPreview()
-	if prttable and #prttable>0 then createAxisGizmo() end
-end)
-lib.makelabel("Move with the XYZ gizmo or enter the build position above. Reset returns to the original saved world position.",transformtab)
-
-
-lib.makelabel("",bsaltab)
-lib.makelabel("The more brick history the more smooth the building will go, but if its too high it might lag",bsaltab)
-lib.makelabel("Defaulted to 400",bsaltab)
-lib.maketextbox("Brick History",bsaltab,function(txt)
-	if tonumber(txt) then
-		historymax = math.abs(tonumber(txt))
-		for i,v in pairs(cubehistory) do
-			if i > historymax then
-				cubehistory[i] = nil
-			end
-		end
-	end
-end)
-lib.makelabel("if you have good wifi you should set the Wait before resizing lower",bsaltab)
-lib.makelabel("defaulted to 0.4",bsaltab)
-lib.makelabel("setting it too low may cause the script to not resize blocks properly",bsaltab)
-local resizewaitlabel = nil
-lib.maketextbox("Wait before resizing",bsaltab,function(txt)
+lib.setpage(bsaltab, "Load & Manage", "Preview Controls")
+historyCountLabel = lib.makelabel("Current build bricks: 0",bsaltab)
+refreshHistoryCapacity()
+lib.setpage(bsaltab, "Load & Manage", "Resize Settings")
+lib.makelabel("Resize Warning",bsaltab,"Setting this value too low may prevent blocks from resizing correctly.")
+local resizeStats = lib.makeresizecard(bsaltab)
+lib.maketextboxlive("Wait before resizing",bsaltab,function(txt)
 	if tonumber(txt) then
 		resizewait = tonumber(txt)
-		lib.updatelabel("Resize Wait: "..tostring(resizewait),resizewaitlabel)
+		if resizeStats then resizeStats:SetWait(resizewait) end
 	end
 end)
 local lastwbs = resizewait
-lib.maketoggle("Make wait before resizing based on ping",bsaltab,function(bool)
+lib.maketoggle("Make resize based on ping",bsaltab,function(bool)
 	wbs = bool
+	if resizeStats then resizeStats:SetMode(bool) end
 	if wbs then
 		lastwbs = resizewait
 	else
 		resizewait = lastwbs
-		lib.updatelabel("Resize Wait: "..tostring(resizewait),resizewaitlabel)
+		if resizeStats then resizeStats:SetWait(resizewait) end
 	end
 end)
-resizewaitlabel = lib.makelabel("Resize Wait: 0.4",bsaltab)
-pinglabel = lib.makelabel("Ping: ???",bsaltab)
-lib.makelabel("To make the auto resize wait work better turn on performance stats",bsaltab)
+if resizeStats then
+	resizeStats:SetWait(resizewait)
+	resizeStats:SetMode(wbs)
+end
+
+lib.setpage(bsaltab, "Load & Manage", "Transform")
+lib.makelabel("",bsaltab)
+positionBoxes.X=lib.maketextboxlive("Position X",bsaltab,function(txt) setPositionAxis("X",txt) end)
+positionBoxes.Y=lib.maketextboxlive("Position Y",bsaltab,function(txt) setPositionAxis("Y",txt) end)
+positionBoxes.Z=lib.maketextboxlive("Position Z",bsaltab,function(txt) setPositionAxis("Z",txt) end)
+lib.makebutton("Reset Position",bsaltab,function()
+	if lib.positionLocked then notify("Transform", "Position is locked", "Warning") return end
+	gizmoOffset=Vector3.new(0,0,0)
+	lib.applyPositionOffsetToPreview()
+	if prttable and #prttable>0 then createAxisGizmo() end
+end)
+lib.positionLocked = false
+lib.maketoggle("Lock Position",bsaltab,function(value)
+	lib.positionLocked = value == true
+	if offsetgizmo then
+		for _,o in ipairs(offsetgizmo.objects) do
+			if o:IsA("Handles") then o.Visible = not lib.positionLocked end
+		end
+	end
+end,false,"Freeze the build position: Position X/Y/Z, the move arrows and Reset are ignored until you turn this off.")
 local ping = -100
 coroutine.wrap(function()
 	while ors do
@@ -3841,30 +3731,29 @@ coroutine.wrap(function()
 			elseif ping > 500 then
 				multi = 2.2
 			end
-			lib.updatelabel("Ping: "..tostring(ping),pinglabel)
+			if resizeStats then resizeStats:SetPing(math.floor(ping + 0.5)) end
 			pinghistory[historynum2] = ping*multi
 			local allnums = 0
 			for i,v in pairs(pinghistory) do
 				allnums = allnums + v
 			end
 			resizewait = (allnums/#pinghistory)/1000
-			lib.updatelabel("Resize Wait: "..tostring(resizewait),resizewaitlabel)
+			if resizeStats then resizeStats:SetWait(resizewait) end
 		end
 	end
 end)()
 updatedropdown()
-lib.makelabel("Pressing 'say' will not make you say to everyone, you say it privately",geartab)
-lib.makelabel("Doing the say/copy will say/copy the gear id, not the gear name",geartab)
 local currgears = {}
 local chatgear = false
 local gearcopybefore = "gear me "
+lib.setpage(geartab, "Gear Tools", "Gear ID & Chat")
 lib.makebutton("Put gear id with 'gear me'",geartab,function()
 	gearcopybefore = "gear me "
 end)
 lib.makebutton("Put gear id with 'gear all'",geartab,function()
 	gearcopybefore = "gear all "
 end)
-lib.maketextbox("Put gear id with what you enter",geartab,function(txt)
+lib.maketextboxlive("Put gear id with what you enter",geartab,function(txt)
 	txt = string.gsub(txt,'"','\"')
 	local len = string.len(txt)
 	if len > 0 then
@@ -4007,28 +3896,28 @@ table.sort(presetNames, function(a, b)
 end)
 local selectedPresetGear = nil
 
-lib.makelabel("Preset Gears",geartab)
+lib.setpage(geartab, "Gear Tools", "Preset Gear Library")
 lib.makedropdown("Select preset gear", geartab, presetNames, function(v)
     selectedPresetGear = v
 end)
 lib.makebutton("Get Preset Gear (say id)", geartab, function()
-    if not selectedPresetGear then notify("Gears", "Select a gear first") return end
+    if not selectedPresetGear then notify("Gears", "Select a gear first", "Warning") return end
     say(gearcopybefore .. tostring(presetMap[selectedPresetGear]), "system")
 end)
 lib.makebutton("Copy Preset Gear ID", geartab, function()
-    if not selectedPresetGear then notify("Gears", "Select a gear first") return end
+    if not selectedPresetGear then notify("Gears", "Select a gear first", "Warning") return end
     setclipboard(gearcopybefore .. tostring(presetMap[selectedPresetGear]))
     notify("Gears", "ID Copied: " .. tostring(presetMap[selectedPresetGear]))
 end)
 lib.makelabel("",geartab)
-lib.makelabel("Custom Gears (creation)",geartab)
+lib.setpage(geartab, "Gear Tools", "Custom Gear Editor")
 local gnamesel = "Untitled"
-lib.maketextbox("Enter gear name",geartab,function(txt)
+lib.maketextboxlive("Enter gear name",geartab,function(txt)
 	txt = string.gsub(txt,'"','\"')
 	gnamesel = txt
 end)
 local gidsel = "0"
-lib.maketextbox("Enter gear id",geartab,function(txt)
+lib.maketextboxlive("Enter gear id",geartab,function(txt)
 	txt = string.gsub(txt,'"','\"')
 	gidsel = txt
 end)
@@ -4056,15 +3945,9 @@ local function updatedCustomGearDropdown()
 		lib.updatedropdown(customGearDropdown, names)
 	end
 end
-
-lib.makelabel("Custom Gears",geartab)
-customGearDropdown = lib.makedropdown("Select custom gear", geartab, {}, function(v)
-	selectedCustomGear = v
-end)
-
 lib.makebutton("Create Custom Gear",geartab,function()
 	if gidsel == nil or tostring(gidsel) == "" or tostring(gidsel) == "0" then
-		notify("Custom Gears", "Put ID gear first")
+		notify("Custom Gears", "Put ID gear first", "Warning")
 		return
 	end
 	if currgears[gidsel] then
@@ -4076,14 +3959,19 @@ lib.makebutton("Create Custom Gear",geartab,function()
 	notify("Custom Gears", "Created: " .. tostring(gnamesel))
 end)
 
-lib.makebutton("Get Custom Gear (say id)", geartab, function()
-	if not selectedCustomGear then notify("Custom Gears", "Select a gear first") return end
+customGearDropdown = lib.makedropdown("Select custom gear", geartab, {}, function(v)
+	selectedCustomGear = v
+end)
+
+
+lib.makebutton("Get Custom Gear", geartab, function()
+	if not selectedCustomGear then notify("Custom Gears", "Select a gear first", "Warning") return end
 	local id = customGearIdByName[selectedCustomGear]
 	if id then say(gearcopybefore .. tostring(id), "system") end
 end)
 
 lib.makebutton("Copy Custom Gear ID", geartab, function()
-	if not selectedCustomGear then notify("Custom Gears", "Select a gear first") return end
+	if not selectedCustomGear then notify("Custom Gears", "Select a gear first", "Warning") return end
 	local id = customGearIdByName[selectedCustomGear]
 	if id then
 		setclipboard(gearcopybefore .. tostring(id))
@@ -4096,7 +3984,7 @@ lib.maketextbox("Delete Gear (enter in id)",geartab,function(txt)
 	updatedCustomGearDropdown()
 end)
 
--- Load custom gears (robust with both old and new formats)
+
 local s,e = pcall(function()
 	local raw = nil
 	local okRead = pcall(function() raw = readfile(gsavenames) end)
@@ -4137,6 +4025,7 @@ local dee2 = true
 local pickuptools = true
 local autodroptools = true
 local currhum = nil
+lib.setpage(tooltab, "Tool Management", "Automatic Tool Actions")
 lib.maketoggle("Don't equip enlighten when dropping tools (For auto drop)",tooltab,function(bool)
 	dee2 = bool
 end,true)
@@ -4156,6 +4045,7 @@ lib.maketoggle("Spam Equip and Unequip all tools",tooltab,function(bool)
 		suaeq = nil
 	end
 end)
+lib.setpage(tooltab, "Tool Management", "Manual Actions")
 lib.makebutton("Equip All Tools",tooltab,function()
 	for i,v in pairs(localplr.Backpack:GetChildren()) do
 		if v:IsA("Tool") then
@@ -4166,32 +4056,28 @@ lib.makebutton("Equip All Tools",tooltab,function()
 	end
 end)
 lib.makebutton("Drop All Tools", tooltab, function()
-    Window:Dialog({
+    for i,v in pairs(localplr.Backpack:GetChildren()) do
+        if v:IsA("Tool") then
+            if (dee and v.Name ~= "The Arkenstone") or not dee then
+                v.Parent = localplr.Character
+            end
+        end
+    end
+    task.wait()
+    for i,v in pairs(localplr.Character:GetChildren()) do
+        if v:IsA("Tool") then
+            v.Parent = workspace
+        end
+    end
+end, {
+    Confirm = {
         Title = "Drop All Tools?",
-        Content = "Are you sure you want to drop all tools?",
-        Buttons = {
-            {
-                Title = "Yes",
-                Callback = function()
-                    for i,v in pairs(localplr.Backpack:GetChildren()) do
-                        if v:IsA("Tool") then
-                            if (dee and v.Name ~= "The Arkenstone") or not dee then
-                                v.Parent = localplr.Character
-                            end
-                        end
-                    end
-                    task.wait()
-                    for i,v in pairs(localplr.Character:GetChildren()) do
-                        if v:IsA("Tool") then
-                            v.Parent = workspace
-                        end
-                    end
-                end,
-            },
-            { Title = "No" },
-        },
-    })
-end)
+        Description = "Are you sure you want to drop all tools?",
+        Yes = "Drop",
+        No = "Cancel",
+        Danger = true,
+    },
+})
 local commands = {}
 local heldtools = {}
 local hb = 0
@@ -4266,9 +4152,9 @@ local onrender = game:GetService("RunService").Heartbeat:Connect(function()
 			end
 		end
 	end
-	-- ============================================================
-	-- Auto pickup/drop tools (chạy mỗi frame)
-	-- ============================================================
+	
+	
+	
 	if pickuptools and localplr.Character and localplr.Character:FindFirstChild("Humanoid") and localplr.Character.Humanoid.Health > 0 then
 		for _, v in pairs(workspace:GetChildren()) do
 			if v:IsA("Tool") and v:FindFirstChild("Handle") then
@@ -4277,26 +4163,62 @@ local onrender = game:GetService("RunService").Heartbeat:Connect(function()
 		end
 	end
 	if autodroptools and localplr.Character and localplr.Character:FindFirstChild("Humanoid") and localplr.Character.Humanoid.Health <= 0 then
-		for _, v in pairs(localplr.Backpack:GetChildren()) do
-			if v:IsA("Tool") and not (dee2 and v.Name == "The Arkenstone") then
-				pcall(function() v.Parent = localplr.Character end)
+		local hasArkenstone = localplr.Backpack:FindFirstChild("The Arkenstone")
+			or localplr.Character:FindFirstChild("The Arkenstone")
+		if not hasArkenstone then
+			for _, v in pairs(localplr.Backpack:GetChildren()) do
+				if v:IsA("Tool") then
+					pcall(function() v.Parent = localplr.Character end)
+				end
 			end
-		end
-		for _, v in pairs(localplr.Character:GetChildren()) do
-			if v:IsA("Tool") and not (dee2 and v.Name == "The Arkenstone") then
-				pcall(function() v.Parent = workspace end)
+			for _, v in pairs(localplr.Character:GetChildren()) do
+				if v:IsA("Tool") then
+					pcall(function() v.Parent = workspace end)
+				end
 			end
 		end
 	end
-	-- ============================================================
+	
 	if novel == true and localplr.Character and localplr.Character:FindFirstChild("HumanoidRootPart") then
 		localplr.Character.HumanoidRootPart.Velocity = Vector3.new(0,0,0)
 	end
 end)
 local spychat = true
+lib.setpage(modtab, "Player & Chat", "Chat Tools")
 lib.maketoggle("SPY CHAT",modtab,function(bool)
 	spychat = bool
 end,true)
+lib.setpage(modtab, "Player & Chat", "Arkenstone Holders")
+do -- scoped: keeps the list locals out of the main chunk's 200-local limit
+	local arkList = lib.makeplayerlist("Players holding The Arkenstone", modtab, nil, {EmptyText = "Nobody has The Arkenstone"})
+	if arkList then
+		local function scanArkenstone()
+			local entries = {}
+			for _, p in ipairs(game.Players:GetPlayers()) do
+				local c = p.Character
+				local bp = p:FindFirstChildOfClass("Backpack")
+				local has = (c and c:FindFirstChild("The Arkenstone"))
+					or (bp and bp:FindFirstChild("The Arkenstone"))
+					or p:GetAttribute("Arken") == true
+				if has then
+					table.insert(entries, {
+						Key = p.Name, Name = p.Name, UserId = p.UserId,
+						Display = p.DisplayName, Count = 0, Chip = "", InGame = true,
+					})
+				end
+			end
+			table.sort(entries, function(a, b) return a.Name:lower() < b.Name:lower() end)
+			arkList.SetEntries(entries)
+		end
+		task.spawn(function()
+			while arkList.IsAlive() and not scriptUnloading do
+				pcall(scanArkenstone)
+				task.wait(1)
+			end
+		end)
+	end
+end
+lib.setpage(modtab, "Player & Chat", "Chat Tools")
 
 
 
@@ -4378,93 +4300,107 @@ function oimremake(mdata)
 end
 game.TextChatService.OnIncomingMessage = oimremake
 
-local blocktxt = lib.makelabel("No Block Selected",modtab)
-lib.makelabel("",modtab)
-local bboxtxt = lib.makelabel("No Boombox Selected",modtab)
-local bbid = ""
-lib.makebutton("Copy Boombox Sound ID",modtab,function()
-	setclipboard(bbid)
-end)
-local osbb = false
-lib.maketoggle("Outline Selected Boombox",modtab,function(bool)
-	osbb = bool
-	if osbb then
-		bbsbox.LineThickness = 0.1
-	else
-		bbsbox.LineThickness = -1
+lib.setpage(modtab, "Inspector", "Block & Boombox Inspector")
+do -- scoped: keeps the inspector locals out of the main chunk's 200-local limit
+	local bbid = ""
+	local inspector = lib.makeinspector(modtab, function()
+		if bbid ~= "" then
+			pcall(setclipboard, bbid)
+			notify("Boombox", "Sound ID copied: " .. bbid)
+		else
+			notify("Boombox", "No sound ID to copy", "Warning")
+		end
+	end)
+	lib.maketoggle("Outline Selected Boombox",modtab,function(bool)
+		bbsbox.LineThickness = bool and 0.1 or -1
+	end)
+	local boomboxnames = {
+		SuperFlyGoldBoombox = true,
+		BoomboxGearThree = true,
+		DualGoldenSuperFlyBoombox = true,
+		DubstepBoombox = true,
+		BeatUpBoombox = true,
+	}
+	local function setBlock(main, sub)
+		if inspector then inspector:SetBlock(main, sub) end
 	end
-end)
-local boomboxnames = {}
-boomboxnames["SuperFlyGoldBoombox"] = true
-boomboxnames["BoomboxGearThree"] = true
-boomboxnames["DualGoldenSuperFlyBoombox"] = true
-boomboxnames["DubstepBoombox"] = true
-boomboxnames["BeatUpBoombox"] = true
-inputbegan = game:GetService("UserInputService").InputBegan:Connect(function(input)
-	if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+	local function setBoombox(main, sub, canCopy)
+		if inspector then inspector:SetBoombox(main, sub, canCopy) end
+	end
+	local function clearBoombox()
+		bbid = ""
+		setBoombox("No boombox selected", "Click a boombox to read its sound ID", false)
+		bbsbox.Adornee = nil
+	end
+	inputbegan = game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed then return end -- clicking the UI (e.g. COPY) must not clear the selection
+		if not (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then return end
 		local mousepart = mouse.Target
-		if mousepart then
-			if mousepart:IsDescendantOf(workspace.Bricks) then
-				local plr = game.Players:FindFirstChild(mousepart.Parent.Name)
-				local plrtxt = ""
-				if plr then
-					if plr.DisplayName == plr.Name then
-						plrtxt = plr.Name
-					else
-						plrtxt = plr.DisplayName.."/"..plr.Name
-					end
+		if not mousepart then
+			setBlock("No block selected", "Click a block to inspect it")
+			sbox.Adornee = nil
+			clearBoombox()
+			return
+		end
+		if mousepart:IsDescendantOf(workspace.Bricks) then
+			local plr = game.Players:FindFirstChild(mousepart.Parent.Name)
+			local plrtxt
+			if plr then
+				if plr.DisplayName == plr.Name then
+					plrtxt = plr.Name
 				else
-					plrtxt = mousepart.Parent.Name.." (NOT INGAME)"
-				end
-				if mousepart.Parent.Parent == workspace then
-					plrtxt = "Server Build (Not from anyone)"
-				end
-				lib.updatelabel("Block is from: "..plrtxt,blocktxt)
-				if oss then
-					lib.updatelabel("Block is from: "..plrtxt,blocktxt2)
-					ssbox.Adornee = mousepart
-					ssbox.Face = side
-					sblock = mousepart
-				end
-				if ss then
-					local ctm = nil
-					for i,v in pairs(normalids) do
-						local pos = mousepart.Position + (v[1]*mousepart.Size[v[2]]/2)
-						if ctm == nil then
-							ctm = {i,(mouse.Hit.Position - pos).Magnitude}
-						elseif (mouse.Hit.Position - pos).Magnitude < ctm[2] then
-							ctm = {i,(mouse.Hit.Position - pos).Magnitude}
-						end
-					end
-					side = ctm[1]
-					ssbox.Face = side
+					plrtxt = plr.DisplayName.."/"..plr.Name
 				end
 			else
-				lib.updatelabel("No Block Selected",blocktxt)
-				sbox.Adornee = nil
+				plrtxt = mousepart.Parent.Name.." (NOT INGAME)"
 			end
-			if boomboxnames[mousepart.Parent.Name] == true then
-				local sound = mousepart.Parent:FindFirstChild("Sound",true)
-				if sound.SoundId == nil or sound.SoundId == "" then
-					lib.updatelabel("No sound is playing on the boombox!",bboxtxt)
-					bbid = ""
-				else
-					bbid = string.sub(sound.SoundId,string.find(sound.SoundId,"id=")+3)
-					lib.updatelabel("Boombox ID: "..bbid,bboxtxt)
+			if mousepart.Parent.Parent == workspace then
+				plrtxt = "Server Build (Not from anyone)"
+			end
+			local who = plr and (plr.DisplayName.." (@"..plr.Name..")") or plrtxt
+			if mousepart.Parent.Parent == workspace then who = plrtxt end
+			local sz = mousepart.Size
+			setBlock(who, mousepart.Name.."  •  "..string.format("%.1f × %.1f × %.1f", sz.X, sz.Y, sz.Z))
+			if oss then
+				lib.updatelabel("Block is from: "..plrtxt,blocktxt2)
+				ssbox.Adornee = mousepart
+				ssbox.Face = side
+				sblock = mousepart
+			end
+			if ss then
+				local ctm = nil
+				for i,v in pairs(normalids) do
+					local pos = mousepart.Position + (v[1]*mousepart.Size[v[2]]/2)
+					if ctm == nil then
+						ctm = {i,(mouse.Hit.Position - pos).Magnitude}
+					elseif (mouse.Hit.Position - pos).Magnitude < ctm[2] then
+						ctm = {i,(mouse.Hit.Position - pos).Magnitude}
+					end
 				end
-				bbsbox.Adornee = mousepart.Parent.Handle
-			else
-				lib.updatelabel("No Boombox Selected",bboxtxt)
-				bbsbox.Adornee = nil
+				side = ctm[1]
+				ssbox.Face = side
 			end
 		else
-			lib.updatelabel("No Block Selected",blocktxt)
+			setBlock("No block selected", "Click a block to inspect it")
 			sbox.Adornee = nil
-			lib.updatelabel("No Boombox Selected",bboxtxt)
-			bbsbox.Adornee = nil
 		end
-	end
-end)
+		local model = mousepart.Parent
+		if model and boomboxnames[model.Name] == true then
+			local sound = model:FindFirstChild("Sound", true)
+			local sid = sound and sound.SoundId or ""
+			if sid == "" then
+				bbid = ""
+				setBoombox("No sound playing", model.Name, false)
+			else
+				bbid = string.match(sid, "id=(.+)") or string.match(sid, "%d+") or sid
+				setBoombox("ID: "..bbid, model.Name..(sound.Playing and "  •  Playing" or "  •  Paused").."  •  tap to copy", true)
+			end
+			bbsbox.Adornee = model:FindFirstChild("Handle")
+		else
+			clearBoombox()
+		end
+	end)
+end
 
 local groups = {}
 local dheads = {}
@@ -4639,49 +4575,168 @@ end
 local anti = {
     freeze=false, stun=false, glitch=false,
     jail=false, invis=false,
-    blind=false, toxify=false,
-     inventory=false, void=true, antideath=true
+    blind=false,
+    inventory=false, void=true, antideath=true,
+    noclip=false, blur=false, colorless=false, fog=false
 }
-lib.makelabel("",modtab)
-lib.makelabel("Anti-* Features", modtab)
-lib.makelabel("Anti-Blur", modtab, "Auto active in [Visual] tab")
-lib.makelabel("Anti-NoColor", modtab, "Auto active in [Visual] tab")
-lib.makelabel("Anti-Fog", modtab, "Auto active in [Visual] tab")
-lib.maketoggle("Anti-Death", modtab, function(b) anti.antideath = b end, true)
-lib.maketoggle("Anti-Freeze", modtab, function(b) anti.freeze = b; print("freeze:",b) end, false)
-lib.maketoggle("Anti-Stun", modtab, function(b) anti.stun = b; print("stun:",b) end, false)
-lib.maketoggle("Anti-Glitch", modtab, function(b) anti.glitch = b; print("glitch:",b) end, false)
-lib.maketoggle("Anti-Jail", modtab, function(b) anti.jail = b; print("jail:",b) end, false)
-lib.maketoggle("Anti-Invisible", modtab, function(b) anti.invis = b; print("invis:",b) end, false)
-lib.maketoggle("Anti-Blind", modtab, function(b) anti.blind = b; print("blind:",b) end, false)
-lib.maketoggle("Anti-Toxify", modtab, function(b) anti.toxify = b; print("toxify:",b) end, false)
-lib.maketoggle("Anti-Vamp", modtab, function(b) anti.inventory = b; print("inventory:",b) end, false)
-lib.maketoggle("Anti-Void", modtab, function(b) anti.void = b; print("void:",b) end, true)
+local antiLightingSaved = setmetatable({}, {__mode = "k"})
+local antiCollisionSaved = setmetatable({}, {__mode = "k"})
+-- Prevent Anti-Freeze from sending the recovery command repeatedly while frozen.
+local antiFreezeHandled = setmetatable({}, {__mode = "k"})
 
-lib.maketoggle("Anti-Crash/clones", modtab, (function()
-	local conn = nil
-	local function remove(obj)
-		if not obj or not obj.Parent then return end
-		local n = obj.Name:lower()
-		if n == "clone" or n == "clonecharacter" or n:find("clone", 1, true) then
-			pcall(function() obj:Destroy() end)
-		end
-	end
-	return function(state)
-		if state then
-			for _, obj in ipairs(workspace:GetDescendants()) do remove(obj) end
-			if conn then conn:Disconnect() end
-			conn = workspace.DescendantAdded:Connect(remove)
-			notify("Anti-Crash/clones", "Enabled")
-		else
-			if conn then conn:Disconnect(); conn = nil end
-			notify("Anti-Crash/clones", "Disabled")
-		end
-	end
-end)(), false, "Credits to me_meymeyme")
+local function applyLightingAnti(name, enabled, property, forcedValue)
+    local lighting = game:GetService("Lighting")
+    local object = lighting:FindFirstChild(name)
+    if not object then return end
+
+    if enabled then
+        if antiLightingSaved[object] == nil then
+            local ok, original = pcall(function() return object[property] end)
+            if ok then antiLightingSaved[object] = original end
+        end
+        pcall(function() object[property] = forcedValue end)
+    elseif antiLightingSaved[object] ~= nil then
+        local original = antiLightingSaved[object]
+        pcall(function() object[property] = original end)
+        antiLightingSaved[object] = nil
+    end
+end
+
+local function applyAntiNoclip(character)
+    if not anti.noclip or not character then return end
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            pcall(function()
+                local group = part.CollisionGroup
+                if antiCollisionSaved[part] == nil then
+                    antiCollisionSaved[part] = group
+                end
+                if group == "NoClip" then
+                    part.CollisionGroup = "Default"
+                end
+            end)
+        end
+    end
+end
+
+lib.makelabel("",modtab)
+lib.setpage(modtab, "Protection", "Character Protections")
+lib.maketoggle("Anti Death", modtab, function(b) anti.antideath = b end, true)
+lib.maketoggle("Anti Void", modtab, function(b) anti.void = b end, true,
+    "Teleports you to (0, 200, 0) when you fall into the void.")
+lib.maketoggle("Anti Glitch", modtab, function(b) anti.glitch = b; print("glitch:",b) end, false)
+lib.maketoggle("Anti Freeze", modtab, function(b) anti.freeze = b; print("freeze:",b) end, false)
+lib.maketoggle("Anti Stun", modtab, function(b) anti.stun = b; print("stun:",b) end, false)
+lib.maketoggle("Anti Jail", modtab, function(b) anti.jail = b; print("jail:",b) end, false)
+lib.maketoggle("Anti Invisible", modtab, function(b) anti.invis = b; print("invis:",b) end, false)
+lib.maketoggle("Anti Noclip", modtab, function(b)
+    anti.noclip = b
+    if b then
+        applyAntiNoclip(localplr.Character)
+    else
+        for part, group in pairs(antiCollisionSaved) do
+            if part and part.Parent then
+                pcall(function() part.CollisionGroup = group end)
+            end
+        end
+        antiCollisionSaved = setmetatable({}, {__mode = "k"})
+    end
+end, false, "Changes NoClip collision groups on your character back to Default.")
+do -- scoped: Anti Fling keeps its locals out of the main chunk's 200-local limit
+    local flingConn = nil
+    local changed = setmetatable({}, {__mode = "k"})
+    local function restoreCollisions()
+        for part in pairs(changed) do
+            if part and part.Parent then pcall(function() part.CanCollide = true end) end
+            changed[part] = nil
+        end
+    end
+    lib.maketoggle("Anti Fling", modtab, function(b)
+        if flingConn then flingConn:Disconnect() flingConn = nil end
+        if b then
+            flingConn = game:GetService("RunService").Stepped:Connect(function()
+                for _, p in ipairs(game.Players:GetPlayers()) do
+                    local c = p ~= localplr and p.Character
+                    if c then
+                        for _, part in ipairs(c:GetDescendants()) do
+                            if part:IsA("BasePart") and part.CanCollide then
+                                changed[part] = true
+                                part.CanCollide = false
+                            end
+                        end
+                    end
+                end
+            end)
+            table.insert(conn, flingConn)
+        else
+            restoreCollisions()
+        end
+    end, false, "Turns off collision between you and other players.")
+end
+do -- scoped: Anti Toxic (disables touch on bricks + your character so kill/toxic bricks cannot trigger)
+    local changed = setmetatable({}, {__mode = "k"})
+    local token = 0
+    local function disarm(part)
+        if part:IsA("BasePart") and part.CanTouch then
+            changed[part] = true
+            part.CanTouch = false
+        end
+    end
+    lib.maketoggle("Anti Toxic", modtab, function(b)
+        token = token + 1
+        local mine = token
+        if b then
+            task.spawn(function()
+                local added
+                local bricks = workspace:FindFirstChild("Bricks")
+                if bricks then
+                    for _, d in ipairs(bricks:GetDescendants()) do pcall(disarm, d) end
+                    added = bricks.DescendantAdded:Connect(function(d) pcall(disarm, d) end)
+                end
+                while token == mine and not scriptUnloading do
+                    local c = localplr.Character
+                    if c then
+                        for _, d in ipairs(c:GetDescendants()) do pcall(disarm, d) end
+                    end
+                    task.wait(0.25)
+                end
+                if added then added:Disconnect() end
+            end)
+        else
+            for part in pairs(changed) do
+                if part and part.Parent then pcall(function() part.CanTouch = true end) end
+                changed[part] = nil
+            end
+        end
+    end, false)
+end
+lib.maketoggle("Fly", modtab, function(b)
+    pcall(function() localplr:SetAttribute("Flying", b) end)
+end, localplr:GetAttribute("Flying") == true)
+lib.makebutton("Tospawn", modtab, function()
+    pcall(function()
+        local c = localplr.Character
+        local hrp = c and c:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.AssemblyLinearVelocity = Vector3.new(0,0,0)
+            hrp.AssemblyAngularVelocity = Vector3.new(0,0,0)
+            c:PivotTo(CFrame.new(0,200,0))
+        end
+    end)
+end)
+lib.setpage(modtab, "Protection", "Screen & Camera Protections")
+lib.maketoggle("Anti Vamp", modtab, function(b) anti.inventory = b; print("inventory:",b) end, false)
+lib.maketoggle("Anti Blind", modtab, function(b) anti.blind = b; print("blind:",b) end, false)
+lib.maketoggle("Anti Blur", modtab, function(b) anti.blur = b end, false,
+    "Disables Lighting.Blur while enabled.")
+lib.maketoggle("Anti Colorless", modtab, function(b) anti.colorless = b end, false,
+    "Disables Lighting.RGB while enabled.")
+lib.maketoggle("Anti Fog", modtab, function(b) anti.fog = b end, false,
+    "Sets Lighting.Fog.Density to 0 while enabled.")
+
 
 task.spawn(function()
-    -- Anti-Void Stepped — chạy mỗi frame, ở TRƯỚC while
+    
     local void_dh = -500
     pcall(function()
         local v = workspace.FallenPartsDestroyHeight
@@ -4696,12 +4751,13 @@ task.spawn(function()
             local hrp = c:FindFirstChild("HumanoidRootPart")
             if not hrp then return end
             if hrp.Position.Y < void_dh + 5 then
-                c:PivotTo(CFrame.new(hrp.Position.X, void_dh + 30, hrp.Position.Z))
                 hrp.AssemblyLinearVelocity = Vector3.new(0,0,0)
+                hrp.AssemblyAngularVelocity = Vector3.new(0,0,0)
+                c:PivotTo(CFrame.new(0,200,0))
             end
         end)
     end)
-    -- Anti-Death hook
+    
 local function hookAntideath(character)
     if not character then return end
     task.spawn(function()
@@ -4709,16 +4765,16 @@ local function hookAntideath(character)
         if not hum then return end
         hum.Died:Connect(function()
     if not anti.antideath then return end
-    -- Tìm trong Backpack trước
+    
     local arken = localplr.Backpack:FindFirstChild("The Arkenstone")
         or character:FindFirstChild("The Arkenstone")
     if not arken then return end
-    -- Nếu chưa cầm → equip
+    
     if arken.Parent ~= character then
         pcall(function() arken.Parent = character end)
         task.wait(0.05)
     end
-    -- Chat
+    
     say("r6 me", "system")
 end)
     end)
@@ -4726,7 +4782,7 @@ end
 if localplr.Character then hookAntideath(localplr.Character) end
 localplr.CharacterAdded:Connect(hookAntideath)
 
-    -- Loop chính
+    
     while on do
         task.wait(0.5)
         pcall(function()
@@ -4735,9 +4791,34 @@ localplr.CharacterAdded:Connect(hookAntideath)
             local hum = char:FindFirstChildOfClass("Humanoid")
             local hrp = char:FindFirstChild("HumanoidRootPart")
 
-            if anti.freeze and hum and hrp and hum.Health > 0 then
-                if hrp.Anchored or (char:FindFirstChild("Torso") and char.Torso.Transparency == 1) then
-                    hum.Health = 0
+            if hum and hrp then
+                if not anti.freeze or hum.Health <= 0 then
+                    antiFreezeHandled[char] = nil
+                else
+                    local torso = char:FindFirstChild("Torso")
+                    local frozen = hrp.Anchored or (torso and torso.Transparency == 1)
+
+                    if frozen and not antiFreezeHandled[char] then
+                        antiFreezeHandled[char] = true
+
+                        -- Match Anti-Death's Arkenstone check/equip flow, but request unfreezing.
+                        local backpack = localplr:FindFirstChildOfClass("Backpack")
+                        local arken = (backpack and backpack:FindFirstChild("The Arkenstone"))
+                            or char:FindFirstChild("The Arkenstone")
+
+                        if arken then
+                            if arken.Parent ~= char then
+                                pcall(function() arken.Parent = char end)
+                                task.wait(0.05)
+                            end
+                            say("unfreeze me", "system")
+                        else
+                            -- No Arkenstone: keep the original Anti-Freeze reset behavior.
+                            pcall(function() hum.Health = 0 end)
+                        end
+                    elseif not frozen then
+                        antiFreezeHandled[char] = nil
+                    end
                 end
             end
             if anti.stun and hum and hum.PlatformStand then
@@ -4785,6 +4866,15 @@ end
                 if blind then blind.Enabled = false end
             end
 
+            -- Lighting protections use the same object names referenced by the source script.
+            applyLightingAnti("Blur", anti.blur, "Enabled", false)
+            applyLightingAnti("RGB", anti.colorless, "Enabled", false)
+            applyLightingAnti("Fog", anti.fog, "Density", 0)
+
+            if anti.noclip then
+                applyAntiNoclip(char)
+            end
+
             if anti.inventory then
                 pcall(function()
                     game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, true)
@@ -4802,25 +4892,6 @@ end
                     end
                 end)
             end
-            if anti.toxify then
-                pcall(function()
-                    for _, plr in ipairs(game.Players:GetPlayers()) do
-                        if plr.Character then
-                            for _, part in ipairs(plr.Character:GetDescendants()) do
-                                if part:IsA("BasePart") then
-                                    part.CanTouch = false
-                                    part.CanQuery = false
-                                end
-                            end
-                        end
-                    end
-                    for _, part in ipairs(workspace.Bricks:GetDescendants()) do
-                        if part:IsA("Part") then
-                            part.CanTouch = false
-                        end
-                    end
-                end)
-            end
             if anti.afk then
                 pcall(function()
                     game.ReplicatedStorage.System:FireServer("Focused")
@@ -4832,5 +4903,11 @@ end
     end
 end)
 
+warn("[TCOE-DIAG] v0.2.3: main script body reached the end")
 end)
-if not success then print(err,"TCOExtrasError") end
+if not success then
+    warn("[TCOE-DIAG] v0.2.3: runtime error: " .. tostring(err))
+    print(err,"TCOExtrasError")
+else
+    warn("[TCOE-DIAG] v0.2.3: main pcall completed successfully")
+end
