@@ -17,7 +17,7 @@ highlight.FillColor = Color3.fromRGB(255,255,255)
 highlight.FillTransparency = .9
 local mouse = localplr:GetMouse()
 local sbox = Instance.new("SelectionBox")
-sbox.Color3 = Color3.fromRGB(0,170,255)
+sbox.Color3 = Color3.fromRGB(255,221,0)
 sbox.LineThickness = -1
 sbox.SurfaceColor3 = Color3.fromRGB(13,105,172)
 sbox.SurfaceTransparency = 1
@@ -662,6 +662,150 @@ local function loadZyronX()
         "player list element"
     ) and okPatch
 
+
+    -- Show the "i" button only when a control has a description or an example.
+    do
+        getgenv().__TCOE_HasInfo = function(info)
+            if type(info) ~= "table" then return false end
+            for _, key in ipairs({"Description", "Desc", "Example", "Examples", "Usage"}) do
+                local v = info[key]
+                if type(v) == "string" and v:match("%S") then return true end
+                if type(v) == "table" and next(v) ~= nil then return true end
+            end
+            return false
+        end
+        local patched = false
+        local patterns = {
+            "function%s+[%w_%.]-AddInfoIcon%s*%(([^%)]*)%)",
+            "AddInfoIcon%s*=%s*function%s*%(([^%)]*)%)",
+        }
+        for _, pat in ipairs(patterns) do
+            local _, e, params = string.find(source, pat)
+            if e then
+                local names = {}
+                for n in params:gmatch("[%a_][%w_]*") do names[#names + 1] = n end
+                local infoName = names[3]
+                if infoName then
+                    local guard = " if not getgenv().__TCOE_HasInfo(" .. infoName .. ") then return end "
+                    source = string.sub(source, 1, e) .. guard .. string.sub(source, e + 1)
+                    patched = true
+                end
+                break
+            end
+        end
+        if not patched then
+            warn("[TCOE] Could not patch AddInfoIcon; empty info buttons will still show.")
+        end
+    end
+
+    okPatch = replaceOnce(
+        "                function Elements:AddInspectorCard(onCopy)",
+        [==[                function Elements:AddRotationCard(onChange)
+                    local UIS = game:GetService("UserInputService")
+                    local TRACK_H, STEP, MAXV = 120, 90, 360
+                    local card = Create("Frame", {
+                        Parent = ItemContainer, BackgroundColor3 = Color3.fromRGB(27, 25, 42),
+                        BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 218),
+                        LayoutOrder = #ItemContainer:GetChildren() + 1,
+                    })
+                    Create("UICorner", { Parent = card, CornerRadius = UDim.new(0, 10) })
+                    Create("UIStroke", { Parent = card, Color = Color3.fromRGB(58, 54, 82), Thickness = 1, Transparency = 0.2 })
+                    Create("TextLabel", { Parent = card, Text = "ROTATION", Font = Enum.Font.GothamBold,
+                        TextSize = 9, TextColor3 = SubTextColor, BackgroundTransparency = 1,
+                        Size = UDim2.new(1, -24, 0, 14), Position = UDim2.new(0, 12, 0, 9),
+                        TextXAlignment = Enum.TextXAlignment.Left })
+                    local axes = {
+                        { Key = "X", Color = Color3.fromRGB(235, 85, 85) },
+                        { Key = "Y", Color = Color3.fromRGB(95, 215, 120) },
+                        { Key = "Z", Color = Color3.fromRGB(100, 150, 235) },
+                    }
+                    local state, cols, conns = { X = 0, Y = 0, Z = 0 }, {}, {}
+                    local function Paint(k)
+                        local c, frac = cols[k], state[k] / MAXV
+                        c.Fill.Size = UDim2.new(1, 0, frac, 0)
+                        c.Fill.Position = UDim2.new(0, 0, 1 - frac, 0)
+                        c.Knob.Position = UDim2.new(0.5, 0, 1 - frac, 0)
+                        c.Value.Text = tostring(state[k]) .. "°"
+                    end
+                    local function SetAxis(k, v, silent)
+                        v = math.clamp(math.floor((tonumber(v) or 0) / STEP + 0.5) * STEP, 0, MAXV)
+                        local changed = state[k] ~= v
+                        state[k] = v
+                        Paint(k)
+                        if changed and not silent and onChange then pcall(onChange, k, v) end
+                    end
+                    for i, ax in ipairs(axes) do
+                        local k = ax.Key
+                        local col = Create("Frame", { Parent = card, BackgroundTransparency = 1,
+                            Position = UDim2.new((i - 1) / 3, 0, 0, 30), Size = UDim2.new(1 / 3, 0, 1, -36) })
+                        local reset = Create("TextLabel", { Parent = col, Text = k, Font = Enum.Font.GothamBold,
+                            TextSize = 13, TextColor3 = ax.Color,
+                            BackgroundColor3 = Color3.fromRGB(40, 36, 66), BorderSizePixel = 0,
+                            AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 0), Size = UDim2.new(0, 56, 0, 26) })
+                        Create("UICorner", { Parent = reset, CornerRadius = UDim.new(0, 7) })
+                        local track = Create("Frame", { Parent = col, BackgroundColor3 = Color3.fromRGB(40, 38, 58),
+                            BorderSizePixel = 0, AnchorPoint = Vector2.new(0.5, 0),
+                            Position = UDim2.new(0.5, 0, 0, 38), Size = UDim2.new(0, 8, 0, TRACK_H) })
+                        Create("UICorner", { Parent = track, CornerRadius = UDim.new(1, 0) })
+                        local fill = Create("Frame", { Parent = track, BackgroundColor3 = ax.Color, BorderSizePixel = 0,
+                            Size = UDim2.new(1, 0, 0, 0), Position = UDim2.new(0, 0, 1, 0) })
+                        Create("UICorner", { Parent = fill, CornerRadius = UDim.new(1, 0) })
+                        local knob = Create("Frame", { Parent = track, BackgroundColor3 = Color3.fromRGB(235, 232, 250),
+                            BorderSizePixel = 0, AnchorPoint = Vector2.new(0.5, 0.5),
+                            Position = UDim2.new(0.5, 0, 1, 0), Size = UDim2.new(0, 18, 0, 18) })
+                        Create("UICorner", { Parent = knob, CornerRadius = UDim.new(1, 0) })
+                        Create("UIStroke", { Parent = knob, Color = ax.Color, Thickness = 2 })
+                        for n = 0, MAXV / STEP do -- tick marks at every 90°
+                            Create("Frame", { Parent = track, BackgroundColor3 = Color3.fromRGB(90, 86, 120), BorderSizePixel = 0,
+                                AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 1 - n / (MAXV / STEP), 0),
+                                Size = UDim2.new(0, 14, 0, 1), ZIndex = 0 })
+                        end
+                        local value = Create("TextLabel", { Parent = col, Text = "0°", Font = Enum.Font.GothamBold,
+                            TextSize = 12, TextColor3 = TextColor, BackgroundTransparency = 1,
+                            AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 38 + TRACK_H + 10),
+                            Size = UDim2.new(1, 0, 0, 16) })
+                        local hit = Create("TextButton", { Parent = col, Text = "", BackgroundTransparency = 1,
+                            AutoButtonColor = false, Active = true, AnchorPoint = Vector2.new(0.5, 0),
+                            Position = UDim2.new(0.5, 0, 0, 28), Size = UDim2.new(0, 48, 0, TRACK_H + 20) })
+                        cols[k] = { Fill = fill, Knob = knob, Value = value }
+                        local dragging = false
+                        local function FromInput(pos)
+                            local rel = (pos.Y - track.AbsolutePosition.Y) / math.max(track.AbsoluteSize.Y, 1)
+                            SetAxis(k, (1 - math.clamp(rel, 0, 1)) * MAXV)
+                        end
+                        hit.InputBegan:Connect(function(input)
+                            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                                dragging = true
+                                FromInput(input.Position)
+                            end
+                        end)
+                        conns[#conns + 1] = UIS.InputChanged:Connect(function(input)
+                            if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                                FromInput(input.Position)
+                            end
+                        end)
+                        conns[#conns + 1] = UIS.InputEnded:Connect(function(input)
+                            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                                dragging = false
+                            end
+                        end)
+                        Paint(k)
+                    end
+                    card.Destroying:Connect(function()
+                        for _, c in ipairs(conns) do pcall(function() c:Disconnect() end) end
+                    end)
+                    return {
+                        Frame = card,
+                        Get = function(_, axis) return state[axis] end,
+                        Set = function(_, axis, v) if state[axis] ~= nil then SetAxis(axis, v) end end,
+                        Reset = function(_, axis) if state[axis] ~= nil then SetAxis(axis, 0) end end,
+                    }
+                end
+
+                function Elements:AddInspectorCard(onCopy)]==],
+        "rotation card element"
+    ) and okPatch
+
     -- Keep the info icon aligned to the right edge of the control title row.
 
     if not okPatch then
@@ -669,12 +813,12 @@ local function loadZyronX()
         return nil
     end
 
-    -- Rebrand visible "ZyronX" text (splash/title strings) to "Better Extras".
+    -- Rebrand visible "ZyronX" text (splash/title strings) to "Poopo Hub".
     -- Only touches string literals, skips anything path/URL-like, and falls back if it would not compile.
     do
         local function brand(text)
             if text:find("/", 1, true) or text:find("\\", 1, true) then return text end
-            local function pick(m) return (m == m:upper()) and "BETTER EXTRAS" or "Better Extras" end
+            local function pick(m) return (m == m:upper()) and "POOPO HUB" or "Poopo Hub" end
             text = text:gsub("[Zz][Yy][Rr][Oo][Nn]%s?[Xx]%s?[Uu][Ii]", pick)
             text = text:gsub("[Zz][Yy][Rr][Oo][Nn]%s?[Xx]", pick)
             return text
@@ -765,7 +909,7 @@ end
 
 warn("[TCOE-DIAG] v0.2.3: ZyronX library loaded; creating window")
 local Window = Library:CreateWindow({
-    Title = "Better EXTRA Stuff",
+    Title = "Poopo Hub",
     Subtitle = "BY HOLLIS",
     SubtitleColor = Color3.fromRGB(190, 140, 255),
     UITheme = "Default",
@@ -773,12 +917,16 @@ local Window = Library:CreateWindow({
     PanelSync = true,
     FpsPosition = "TopLeft",
 })
-Window:AddCredit("Hollis", "Better Extra Stuff")
-Window:AddCredit("ZyronX", "UI Library")
+Window:AddCredit("Hollis", "Poopo Hub")
+Window:AddCredit("Hypol-X", "Zyron-X UI Library")
 warn("[TCOE-DIAG] v0.2.3: window created; continuing script setup")
 
 local TCOE_INSTANCE_KEY = "__TCOE_BetterExtra_Instance"
 local lib = {}
+lib.tpIgnoreUntil = 0
+function lib.markTP(sec) -- call right before the script moves your character on purpose (Anti Teleport ignores it)
+    lib.tpIgnoreUntil = math.max(lib.tpIgnoreUntil or 0, os.clock() + (sec or 0.5))
+end
 local scriptUnloading = false
 local tabSections = setmetatable({}, {__mode = "k"})
 local tabNames = setmetatable({}, {__mode = "k"})
@@ -823,7 +971,7 @@ function lib.makelib(_)
     return gui
 end
 
-local libgui = lib.makelib("Better EXTRA Stuff")
+local libgui = lib.makelib("Poopo Hub")
 
 local previousInstance = getgenv()[TCOE_INSTANCE_KEY]
 if type(previousInstance) == "table" and type(previousInstance.Destroy) == "function" then
@@ -918,16 +1066,37 @@ function lib.makeresizecard(tab)
     return sectionFor(tab):AddResizeStatsCard()
 end
 
+function lib.makerotation(tab, onChange)
+    local section = sectionFor(tab)
+    if not section.AddRotationCard then return nil end
+    return section:AddRotationCard(onChange)
+end
+
 function lib.makebutton(text, tab, callback, infoData)
     return sectionFor(tab):AddButton(tostring(text), callback, infoData)
 end
 
 function lib.maketoggle(text, tab, callback, default, desc)
     local id = controlId(text, tab)
-    return sectionFor(tab):AddToggle(id, default == true, callback, {
+    local control = sectionFor(tab):AddToggle(id, default == true, callback, {
         Title = tostring(text),
         Description = desc and tostring(desc) or nil,
     })
+    lib.toggles = lib.toggles or {}
+    lib.toggles[tostring(text)] = { Control = control, Callback = callback }
+    return control
+end
+
+function lib.settoggle(text, state) -- flips a toggle from code (UI + callback)
+    local entry = lib.toggles and lib.toggles[tostring(text)]
+    if not entry then return end
+    local c = entry.Control
+    local f = type(c) == "table" and (c.Set or c.SetValue or c.SetState) or nil
+    if f then
+        local ok = pcall(f, state)
+        if not ok then pcall(f, c, state) end
+    end
+    pcall(entry.Callback, state) -- idempotent; makes sure the flag changes even if Set only repaints
 end
 
 function lib.maketextbox(text, tab, callback, live)
@@ -997,7 +1166,7 @@ function lib.maketextboxlive(text, tab, callback)
     return lib.maketextbox(text, tab, callback, true)
 end
 
-function lib.makeslider(text, tab, minValue, maxValue, defaultValue, callback)
+function lib.makeslider(text, tab, minValue, maxValue, defaultValue, callback, step)
     local id = controlId(text, tab)
     return sectionFor(tab):AddSlider(id, minValue, maxValue, defaultValue, function(value)
         local numericValue = tonumber(value)
@@ -1005,6 +1174,7 @@ function lib.makeslider(text, tab, minValue, maxValue, defaultValue, callback)
         callback(numericValue)
     end, {
         Title = tostring(text),
+        Step = tonumber(step) or nil,
     })
 end
 
@@ -1056,7 +1226,6 @@ end
 local buildtab = lib.maketab("Build")
 local bsaltab = lib.maketab("Build Save/Load")
 local geartab = lib.maketab("Gears")
-local tooltab = lib.maketab("Tools")
 local modtab = lib.maketab("Moderation & Management")
 local scripttab = lib.maketab("More Scripts")
 local settingstab = Window:CreateTab("Settings", false, false)
@@ -1099,10 +1268,6 @@ do -- scoped: keeps the script-library locals out of the main chunk's 200-local 
             Url = "https://raw.githubusercontent.com/agarv0/AGARWARE/master/loader.lua"},
     }, runExternal)
 end
-local dumfix = true
-lib.maketoggle("ugly fix",buildtab,function(bool)
-	dumfix = bool
-end,true)
 
 lib.makelabel("",buildtab)
 lib.makebutton("Place Block",buildtab,function()
@@ -1294,24 +1459,23 @@ local function cwait(t) task.wait((t or 0.1) * COLLIDE_WAIT_MULT) end
 local function swait(t) task.wait((t or 0.1) * SIGN_WAIT_MULT) end
 
 local function getGhostBlockers(ghost)
+    -- Oriented box query against the physics spatial index: sees rotated parts, does not walk every brick,
+    -- and is live on every call, so blocks placed a moment ago are caught too.
     local blockers = {}
     if not ghost or not ghost:IsA("BasePart") then return blockers end
-    local ghostCFrame = ghost.CFrame
-    local ghostSize = ghost.Size
-    local ghostParts = workspace.Bricks:GetDescendants()
-    for _,part in ipairs(ghostParts) do
-        if part:IsA("BasePart") and part ~= ghost and part.Parent then
-            local rel = ghostCFrame:ToObjectSpace(part.CFrame)
-            local rs = rel.Position
-            local ps = part.Size
-            local half = ghostSize/2
-            local phalf = ps/2
-            if math.abs(rs.X) < (half.X + phalf.X) and
-               math.abs(rs.Y) < (half.Y + phalf.Y) and
-               math.abs(rs.Z) < (half.Z + phalf.Z) and
-               part.CanCollide == true then
-                table.insert(blockers, part)
-            end
+    local bricks = workspace:FindFirstChild("Bricks")
+    if not bricks then return blockers end
+    local pad = 0.1 -- shrink the probe so parts that only touch a face are not counted
+    local size = Vector3.new(math.max(ghost.Size.X - pad, 0.05), math.max(ghost.Size.Y - pad, 0.05), math.max(ghost.Size.Z - pad, 0.05))
+    local op = OverlapParams.new()
+    op.FilterType = Enum.RaycastFilterType.Include
+    op.FilterDescendantsInstances = {bricks}
+    op.MaxParts = 0
+    local ok, parts = pcall(workspace.GetPartBoundsInBox, workspace, ghost.CFrame, size, op)
+    if not ok then return blockers end
+    for _, part in ipairs(parts) do
+        if part ~= ghost and part.Parent and part.CanCollide == true then
+            table.insert(blockers, part)
         end
     end
     return blockers
@@ -1476,7 +1640,7 @@ function buildblock(pos,texture,color,bsize,bsizev3,premadebuild,origmaterial,sp
 					novel = true
 					pos = oo[3] or pos
 					if tp then
-						localplr.Character.HumanoidRootPart.CFrame = CFrame.new(pos)
+						lib.markTP(); localplr.Character.HumanoidRootPart.CFrame = CFrame.new(pos)
 					end
 				end)
 				task.wait(.05)
@@ -1534,7 +1698,7 @@ function buildblock(pos,texture,color,bsize,bsizev3,premadebuild,origmaterial,sp
 		local s,e = pcall(function()
 			novel = true
 			if tp then
-				localplr.Character.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0,6,0))
+				lib.markTP(); localplr.Character.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0,6,0))
 			end
 		end)
 		task.wait(.1)
@@ -1585,7 +1749,7 @@ function buildblock(pos,texture,color,bsize,bsizev3,premadebuild,origmaterial,sp
 			local s,e = pcall(function()
 				novel = true
 				if tp then
-					localplr.Character.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0,6,0))
+					lib.markTP(); localplr.Character.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0,6,0))
 				end
 			end)
 			task.wait(.2)
@@ -1616,7 +1780,7 @@ function buildblock(pos,texture,color,bsize,bsizev3,premadebuild,origmaterial,sp
 			local s,e = pcall(function()
 				novel = true
 				if tp then
-					localplr.Character.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0,8,0))
+					lib.markTP(); localplr.Character.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0,8,0))
 				end
 			end)
 			task.wait(1)
@@ -1646,7 +1810,7 @@ function buildblock(pos,texture,color,bsize,bsizev3,premadebuild,origmaterial,sp
 			local s,e = pcall(function()
 				novel = true
 				if tp then
-					localplr.Character.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0,8,0))
+					lib.markTP(); localplr.Character.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0,8,0))
 				end
 			end)
 			cwait(0.2)
@@ -1711,7 +1875,7 @@ function buildblock(pos,texture,color,bsize,bsizev3,premadebuild,origmaterial,sp
 				local s,e = pcall(function()
 					novel = true
 					if tp then
-						localplr.Character.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0,6,0))
+						lib.markTP(); localplr.Character.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0,6,0))
 					end
 				end)
 				task.wait(resizewait)
@@ -1742,7 +1906,7 @@ function buildblock(pos,texture,color,bsize,bsizev3,premadebuild,origmaterial,sp
 				local s,e = pcall(function()
 					novel = true
 					if tp then
-						localplr.Character.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0,6,0))
+						lib.markTP(); localplr.Character.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0,6,0))
 					end
 				end)
 				task.wait(resizewait)
@@ -1773,7 +1937,7 @@ function buildblock(pos,texture,color,bsize,bsizev3,premadebuild,origmaterial,sp
 				local s,e = pcall(function()
 					novel = true
 					if tp then
-						localplr.Character.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0,6,0))
+						lib.markTP(); localplr.Character.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0,6,0))
 					end
 				end)
 				task.wait(resizewait)
@@ -1965,7 +2129,7 @@ local function placeSign(signData, parentPart, materialsTable)
 	local function teleport(viewPos, target)
 		if not (localplr.Character and localplr.Character:FindFirstChild("HumanoidRootPart")) then return end
 		pcall(function()
-			localplr.Character.HumanoidRootPart.CFrame = CFrame.lookAt(viewPos, target)
+			lib.markTP(); localplr.Character.HumanoidRootPart.CFrame = CFrame.lookAt(viewPos, target)
 		end)
 		swait(0.45)
 	end
@@ -2400,7 +2564,7 @@ lib.maketoggle("Toxify Aura",buildtab,function(bool)
 			local opos = localplr.Character.HumanoidRootPart.CFrame
 			buildblock(round(Vector3.new(math.random(10000,100000),math.random(1000,5000),math.random(10000,100000))),"toxic",Color3.fromRGB(0,0,0),nil,nil,true,"Neon",nil,nil,nil)
 			buildingtoxify = false
-			localplr.Character.HumanoidRootPart.CFrame = opos
+			lib.markTP(); localplr.Character.HumanoidRootPart.CFrame = opos
 		end
 		if toxifybrick and (localplr.Character:FindFirstChild("Build") or localplr.Backpack:FindFirstChild("Build")) then
 			for i,v in pairs(game.Players:GetPlayers()) do
@@ -2501,71 +2665,139 @@ coroutine.wrap(function()
 	end
 end)()
 lib.makelabel("",buildtab)
-local sblock = nil
-local spmsb = false
-local side = Enum.NormalId.Top
-local sides = {"Right","Top","Back","Left","Bottom","Front"}
+-- Block selection (rebuilt). All state lives in lib.sel, so this section adds no top-level locals.
+lib.sel = { block = nil, picked = nil, side = Enum.NormalId.Top, on = false, outline = false,
+	byClick = true, spam = false, spamToken = 0, thickness = 0.06 }
 lib.setpage(buildtab, "Building", "Block Selection")
-local blocktxt2 = lib.makelabel("No Block Selected",buildtab)
-local ssbox = Instance.new("SurfaceGui")
-ssbox.Parent = game.CoreGui
-ssbox.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-local ssboxframe = Instance.new("Frame")
-ssboxframe.BackgroundTransparency = 1
-ssboxframe.Size = UDim2.new(1,0,1,0)
-ssboxframe.Parent = ssbox
-local uistroke = Instance.new("UIStroke")
-uistroke.LineJoinMode = Enum.LineJoinMode.Miter
-uistroke.Color = Color3.fromRGB(13,105,172)
-uistroke.Thickness = -1
-uistroke.Parent = ssboxframe
-local oss = false
-lib.maketoggle("Select Block",buildtab,function(bool)
-	oss = bool
-	uistroke.Thickness = 15
-end)
-local osb = false
-lib.maketoggle("Outline Selected Block",buildtab,function(bool)
-	osb = bool
-	if osb then
-		sbox.LineThickness = 0.05
-	else
-		sbox.LineThickness = -1
-	end
-end)
-lib.makedropdown("Select Side to build on",buildtab,sides,function(txt)
-	if not txt or txt == "" then return end
-	local ok, id = pcall(function() return Enum.NormalId[txt] end)
-	if not ok or not id then return end
-	side = id
-	if sblock then
-		ssbox.Adornee = sblock
-		ssbox.Face = side
-	end
-end)
-local ss = true
-lib.maketoggle("Select Side to build on (by clicking)",buildtab,function(bool)
-	ss = bool
-end,true)
-lib.maketoggle("Spam selected side of selected block",buildtab,function(bool)
-	spmsb = bool
-	while spmsb do
-		task.wait(.05)
-		if localplr.Backpack:FindFirstChild("Build") and localplr.Character then
-			localplr.Backpack.Build.Parent = localplr.Character
+do
+	local sel = lib.sel
+	local info = lib.makelabel("No Block Selected", buildtab)
+
+	-- Face marker: tinted face + border on the side that will be built on.
+	local face = Instance.new("SurfaceGui")
+	face.Name = "SelectedFaceMarker"
+	face.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	face.AlwaysOnTop = true
+	face.Enabled = false
+	face.Parent = game.CoreGui
+	local fill = Instance.new("Frame")
+	fill.Size = UDim2.new(1,0,1,0)
+	fill.BackgroundColor3 = Color3.fromRGB(13,105,172)
+	fill.BackgroundTransparency = 0.65
+	fill.BorderSizePixel = 0
+	fill.Parent = face
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(0,170,255)
+	stroke.Thickness = 4
+	stroke.LineJoinMode = Enum.LineJoinMode.Miter
+	stroke.Parent = fill
+	sel.face = face
+
+	sel.owner = function(part)
+		local model = part.Parent
+		if not model or model.Parent == workspace then return "Server Build (Not from anyone)" end
+		local plr = game.Players:FindFirstChild(model.Name)
+		if plr then
+			return plr.DisplayName == plr.Name and plr.Name or (plr.DisplayName .. "/" .. plr.Name)
 		end
-		if localplr.Character and localplr.Character:FindFirstChild("Build") and sblock then
-			local s,e = pcall(function()
-				local s = "normal"
-				if localplr.PlayerGui:FindFirstChild("Build") and localplr.PlayerGui.Build:FindFirstChild("Button") then
-					s = localplr.PlayerGui.Build.Button.Text
-				end
-				local event = (localplr.Character.Build:FindFirstChild("origevent") and localplr.Character.Build.origevent:Invoke(sblock,side,localplr.Character:GetPivot().Position-Vector3.new(0,1.5,0),s)) or localplr.Character.Build.Script.Event:FireServer(sblock,side,localplr.Character:GetPivot().Position-Vector3.new(0,1.5,0),s)
-			end)
-			if not s then print(e) end
-		end
+		return model.Name .. " (NOT INGAME)"
 	end
-end)
+
+	-- One place that syncs everything: outline, face marker and the label.
+	sel.refresh = function()
+		local b = sel.block
+		if b and not b.Parent then sel.block = nil; b = nil end -- the selected block got deleted
+		if sel.picked and not sel.picked.Parent then sel.picked = nil end
+		local target = b or sel.picked -- outline: selected block, else the last block you tapped
+		sbox.Adornee = (sel.outline and target) or nil
+		sbox.LineThickness = sel.thickness
+		face.Adornee = b
+		face.Face = sel.side
+		face.Enabled = sel.on and b ~= nil
+		lib.updatelabel(b and ("Selected: " .. sel.owner(b) .. "  •  " .. b.Name .. "  •  Side: " .. sel.side.Name)
+			or "No Block Selected", info)
+	end
+
+	sel.select = function(part)
+		if sel.watch then sel.watch:Disconnect(); sel.watch = nil end
+		sel.block = part
+		if part then sel.watch = part.AncestryChanged:Connect(function() sel.refresh() end) end
+		sel.refresh()
+	end
+
+	local function nearestFace(part, hit)
+		local best, bestD
+		for nid, v in pairs(normalids) do
+			local pt = part.CFrame:PointToWorldSpace(v[1] * part.Size[v[2]] / 2)
+			local d = (hit - pt).Magnitude
+			if not bestD or d < bestD then best, bestD = nid, d end
+		end
+		return best
+	end
+
+	sel.input = game:GetService("UserInputService").InputBegan:Connect(function(input, processed)
+		if processed then return end -- tapping the UI must not change the selection
+		local t = input.UserInputType
+		if t ~= Enum.UserInputType.MouseButton1 and t ~= Enum.UserInputType.Touch then return end
+		local part = mouse.Target
+		if not part or not part:IsDescendantOf(workspace.Bricks) then return end -- empty space keeps the selection
+		sel.picked = part
+		if sel.on then
+			if sel.byClick then
+				local best = nearestFace(part, mouse.Hit.Position)
+				if best then sel.side = best end
+			end
+			sel.select(part)
+		else
+			sel.refresh()
+		end
+	end)
+
+	lib.maketoggle("Select Block", buildtab, function(bool)
+		sel.on = bool
+		if bool then sel.refresh() else sel.select(nil) end
+	end, false, "Tap a block to pick it as the build target. Turning this off clears the selection.")
+	lib.maketoggle("Outline Selected Block", buildtab, function(bool)
+		sel.outline = bool
+		sel.refresh()
+	end, false, "Outlines the selected block (or the last block you tapped when nothing is selected).")
+	lib.makeslider("Outline Thickness", buildtab, 1, 10, 3, function(v)
+		sel.thickness = v * 0.02
+		sel.refresh()
+	end, 1)
+	sel.sideDropdown = lib.makedropdown("Select Side to build on", buildtab, {"Right","Top","Back","Left","Bottom","Front"}, function(txt)
+		local ok, id = pcall(function() return Enum.NormalId[txt] end)
+		if ok and id then sel.side = id; sel.refresh() end
+	end)
+	lib.maketoggle("Select Side to build on (by clicking)", buildtab, function(bool)
+		sel.byClick = bool
+	end, true, "Picks the face closest to where you tap. Off = use the side chosen in the dropdown.")
+	lib.makebutton("Clear Selection", buildtab, function()
+		sel.picked = nil
+		sel.select(nil)
+	end)
+	lib.maketoggle("Spam selected side of selected block", buildtab, function(bool)
+		sel.spam = bool
+		sel.spamToken = sel.spamToken + 1
+		local mine = sel.spamToken
+		while sel.spam and sel.spamToken == mine and not scriptUnloading do
+			task.wait(.05)
+			if localplr.Backpack:FindFirstChild("Build") and localplr.Character then
+				localplr.Backpack.Build.Parent = localplr.Character
+			end
+			if localplr.Character and localplr.Character:FindFirstChild("Build") and sel.block then
+				local s,e = pcall(function()
+					local s = "normal"
+					if localplr.PlayerGui:FindFirstChild("Build") and localplr.PlayerGui.Build:FindFirstChild("Button") then
+						s = localplr.PlayerGui.Build.Button.Text
+					end
+					local event = (localplr.Character.Build:FindFirstChild("origevent") and localplr.Character.Build.origevent:Invoke(sel.block,sel.side,localplr.Character:GetPivot().Position-Vector3.new(0,1.5,0),s)) or localplr.Character.Build.Script.Event:FireServer(sel.block,sel.side,localplr.Character:GetPivot().Position-Vector3.new(0,1.5,0),s)
+				end)
+				if not s then print(e) end
+			end
+		end
+	end)
+end
 lib.setpage(buildtab, "Building", "Shapes & Text")
 local qrcodegen = safeLoad("https://raw.githubusercontent.com/speedata/luaqrcode/refs/heads/master/qrencode.lua", "QRCode")
 if not qrcodegen then
@@ -3218,14 +3450,86 @@ builddropdown = lib.makedropdown("Saved Builds",bsaltab,getfn(),function(sel)
 	selectedbuild = {sel, data}
 	pcall(updateTransformFields)
 end)
+-- Rotation helpers (fields on lib so the main chunk's 200-local limit is untouched).
+-- A quarter turn only maps the block grid onto itself when it turns about a point whose X/Z are even and
+-- equal mod 4 (blocks sit on 2 + 4n). So the pivot is the build centre snapped to that lattice; preview and
+-- Load Save both use this same pivot, so what you see is exactly what gets built.
+function lib.rotPivot()
+	-- Pivot = build centre snapped to the lattice a quarter turn maps onto itself: all three coordinates
+	-- even and equal mod 4 (blocks sit on 2 + 4n). Needed for X/Z turns too, so Y is snapped as well.
+	local c = getPreviewCenter() or gizmoPivotCenter or Vector3.new(0,0,0)
+	local best, bestD
+	for _, r in ipairs({0, 2}) do
+		local function q(n) return math.round((n - r) / 4) * 4 + r end
+		local pt = Vector3.new(q(c.X), q(c.Y), q(c.Z))
+		local d = (pt - c).Magnitude
+		if not bestD or d < bestD then best, bestD = pt, d end
+	end
+	return best
+end
+lib.rotationX, lib.rotationZ = 0, 0
+function lib.rotationCF() -- Z, then X (tilt), then Y (spin about world up); every angle is a multiple of 90
+	local function q(d) return math.rad(math.floor(((tonumber(d) or 0) % 360) / 90 + 0.5) * 90) end
+	return CFrame.Angles(0, q(lib.rotationDegrees), 0) * CFrame.Angles(q(lib.rotationX), 0, q(lib.rotationZ))
+end
+function lib.refreshRotation()
+	if prttable and #prttable > 0 then
+		lib.applyPositionOffsetToPreview()
+		createAxisGizmo()
+	end
+end
+function lib.snapNum(n) -- clean float noise left by the rotation maths (keeps real .5 / off-grid values)
+	local h = math.round(n * 2) / 2
+	if math.abs(n - h) < 0.001 then return h end
+	return n
+end
 lib.makebutton("Load Save",bsaltab,function()
 	if not selectedbuild then return end
 	local build = getbuild()
 	if not build then return end
 	if oldprt then oldprt:Destroy() end
 
+	local rot = lib.rotationCF()
+	local pivot = lib.rotPivot()
+	local rotateCF = CFrame.new(pivot + intvec3(gizmoOffset)) * rot * CFrame.new(-pivot)
+	local rotatedBuild = {}
+	local rr, ru, rl = rot.RightVector, rot.UpVector, rot.LookVector -- where the block's X / Y / Z axes end up
+	for _, source in ipairs(build) do
+		local v = table.clone(source)
+		local pos = v.p or v.pos
+		if type(pos) == "table" and #pos >= 3 then
+			local size = v.s or v.size or {mult,mult,mult}
+			local sx, sy, sz = tonumber(size[1]) or mult, tonumber(size[2]) or mult, tonumber(size[3]) or mult
+			local center
+			if #pos == 12 then center = CFrame.new(table.unpack(pos)).Position
+			elseif v.s or v.size then center = Vector3.new(pos[1]+sx/2-0.5,pos[2]+sy/2-0.5,pos[3]+sz/2-0.5)
+			else center = Vector3.new(pos[1],pos[2],pos[3]) end
+			local newCenter = rotateCF:PointToWorldSpace(center)
+			if v.isSign then
+				v._worldPos = Vector3.new(lib.snapNum(newCenter.X),lib.snapNum(newCenter.Y),lib.snapNum(newCenter.Z))
+				local faceVectors = {Front=Vector3.new(0,0,-1), Back=Vector3.new(0,0,1), Left=Vector3.new(-1,0,0), Right=Vector3.new(1,0,0), Top=Vector3.new(0,1,0), Bottom=Vector3.new(0,-1,0)}
+				local oldNormal = faceVectors[v.signFace or "Front"] or faceVectors.Front
+				local newNormal = rot:VectorToWorldSpace(oldNormal)
+				local faceNames = { ["0,0,-1"]="Front", ["0,0,1"]="Back", ["-1,0,0"]="Left", ["1,0,0"]="Right", ["0,1,0"]="Top", ["0,-1,0"]="Bottom" }
+				v.signFace = faceNames[math.round(newNormal.X)..","..math.round(newNormal.Y)..","..math.round(newNormal.Z)] or v.signFace
+			else
+				local ox, oy, oz = sx, sy, sz -- axis-aligned size after the turn (axes just swap)
+				sx = lib.snapNum(math.abs(rr.X)*ox + math.abs(ru.X)*oy + math.abs(rl.X)*oz)
+				sy = lib.snapNum(math.abs(rr.Y)*ox + math.abs(ru.Y)*oy + math.abs(rl.Y)*oz)
+				sz = lib.snapNum(math.abs(rr.Z)*ox + math.abs(ru.Z)*oy + math.abs(rl.Z)*oz)
+				if v.s or v.size then
+					v.s = {sx,sy,sz}; v.size = nil
+					v.p = {lib.snapNum(newCenter.X-sx/2+0.5),lib.snapNum(newCenter.Y-sy/2+0.5),lib.snapNum(newCenter.Z-sz/2+0.5)}; v.pos = nil
+				else
+					v.p = {lib.snapNum(newCenter.X),lib.snapNum(newCenter.Y),lib.snapNum(newCenter.Z)}; v.pos = nil
+				end
+			end
+		end
+		table.insert(rotatedBuild,v)
+	end
+
 	local normalParts, signParts = {}, {}
-	for _, v in ipairs(build) do
+	for _, v in ipairs(rotatedBuild) do
 		if v.isSign then table.insert(signParts, v) else table.insert(normalParts, v) end
 	end
 
@@ -3237,7 +3541,7 @@ lib.makebutton("Load Save",bsaltab,function()
 		local posses = v.p or v.pos
 		if posses then
 			local args = {}
-			args[1] = Vector3.new(posses[1],posses[2],posses[3]) + intvec3(gizmoOffset)
+			args[1] = Vector3.new(posses[1],posses[2],posses[3])
 			args[2] = v.m or v.mat
 			args[3] = Color3.fromRGB(table.unpack(v.c or v.color))
 			if v.s or v.size then args[5] = Vector3.new(table.unpack(v.s or v.size)) end
@@ -3269,16 +3573,18 @@ lib.makebutton("Load Save",bsaltab,function()
 	for _, v in ipairs(signParts) do
 		if stopped then break end
 		local pCopy = v.p or v.pos
-		if pCopy and #pCopy == 12 then
-			local cf = CFrame.new(table.unpack(pCopy)) + gizmoOffset
-			v._worldPos = cf.Position
-		elseif pCopy and #pCopy == 3 then
-			local size = v.s or v.size or {mult,mult,mult}
-			v._worldPos = Vector3.new(
-				pCopy[1] + size[1]/2 - 0.5 + gizmoOffset.X,
-				pCopy[2] + size[2]/2 - 0.5 + gizmoOffset.Y,
-				pCopy[3] + size[3]/2 - 0.5 + gizmoOffset.Z
-			)
+		if not v._worldPos then
+			if pCopy and #pCopy == 12 then
+				local cf = CFrame.new(table.unpack(pCopy)) + gizmoOffset
+				v._worldPos = cf.Position
+			elseif pCopy and #pCopy == 3 then
+				local size = v.s or v.size or {mult,mult,mult}
+				v._worldPos = Vector3.new(
+					pCopy[1] + size[1]/2 - 0.5 + gizmoOffset.X,
+					pCopy[2] + size[2]/2 - 0.5 + gizmoOffset.Y,
+					pCopy[3] + size[3]/2 - 0.5 + gizmoOffset.Z
+				)
+			end
 		end
 		local parentPart = nil
 		if v.parentId and idToPart[v.parentId] then parentPart = idToPart[v.parentId] end
@@ -3318,6 +3624,7 @@ lib.makebutton("Display Whole Build (might lag, only you see)",bsaltab,function(
 		if build then
 			if prttable then for _,v in pairs(prttable) do if v then v:Destroy() end end end
 			previewBaseCFrames={}
+			lib.previewBaseSizes={}
 			gizmoPivotCenter=nil
 			destroyOffsetGizmo()
 			local laggyparttable={}
@@ -3332,6 +3639,8 @@ lib.makebutton("Display Whole Build (might lag, only you see)",bsaltab,function(
 					table.insert(laggyparttable,prt)
 					if prt then
 						previewBaseCFrames[#laggyparttable]=prt.CFrame
+						lib.previewBaseSizes = lib.previewBaseSizes or {}
+						lib.previewBaseSizes[#laggyparttable]=prt.Size
 						if v.isSign then
 							pcall(function()
 								local sg = Instance.new("SurfaceGui")
@@ -3355,7 +3664,7 @@ lib.makebutton("Display Whole Build (might lag, only you see)",bsaltab,function(
 				end
 			end
 			prttable=laggyparttable
-			gizmoPivotCenter=intvec3(getPreviewCenter())
+			gizmoPivotCenter=getPreviewCenter() or Vector3.new(0,0,0)
 			gizmoOffset=intvec3(gizmoOffset) or Vector3.new(0,0,0)
 			lib.applyPositionOffsetToPreview()
 			createAxisGizmo()
@@ -3368,6 +3677,7 @@ lib.makebutton("Delete build display (might lag, only you see)",bsaltab,function
 	destroyOffsetGizmo()
 	gizmoPivotCenter=nil
 	previewBaseCFrames={}
+	lib.previewBaseSizes={}
 	updateTransformFields()
 end)
 
@@ -3515,7 +3825,7 @@ updateTransformFields = function()
 	end)
 
 	updatingTransformFields = false
-	if not ok then warn("Better Extra Transform UI update error:", err) end
+	if not ok then warn("Poopo Hub Transform UI update error:", err) end
 end
 
 -- Build position = exact centre of the build's bounding box as it is saved/loaded (NOT rounded),
@@ -3556,11 +3866,13 @@ end
 function lib.applyPositionOffsetToPreview()
 	gizmoOffset = intvec3(gizmoOffset) or Vector3.new(0,0,0)
 	if prttable and #prttable>0 then
-		local movement=CFrame.new(gizmoOffset)
+		local pivot = lib.rotPivot()
+		local transform = CFrame.new(pivot + gizmoOffset) * lib.rotationCF() * CFrame.new(-pivot)
 		for i,v in ipairs(prttable) do
 			local base=previewBaseCFrames[i]
 			if v and v.Parent and base then
-				v.CFrame=movement*base
+				-- The CFrame already carries the rotation: do NOT also swap Size (that rotated the part twice).
+				v.CFrame=transform*base
 			end
 		end
 		if offsetgizmo and offsetgizmo.anchor and offsetgizmo.anchor.Parent then
@@ -3604,7 +3916,12 @@ createAxisGizmo = function()
 	for _,v in ipairs(prttable) do
 		if v and v.Parent and v:IsA("BasePart") then
 			valid=true
-			local half=v.Size/2
+			local cfv,sz=v.CFrame,v.Size
+			local rv,uv,lv=cfv.RightVector,cfv.UpVector,cfv.LookVector
+			local half=Vector3.new(
+				math.abs(rv.X)*sz.X+math.abs(uv.X)*sz.Y+math.abs(lv.X)*sz.Z,
+				math.abs(rv.Y)*sz.X+math.abs(uv.Y)*sz.Y+math.abs(lv.Y)*sz.Z,
+				math.abs(rv.Z)*sz.X+math.abs(uv.Z)*sz.Y+math.abs(lv.Z)*sz.Z)/2
 			local p=v.Position
 			minv=Vector3.new(math.min(minv.X,p.X-half.X),math.min(minv.Y,p.Y-half.Y),math.min(minv.Z,p.Z-half.Z))
 			maxv=Vector3.new(math.max(maxv.X,p.X+half.X),math.max(maxv.Y,p.Y+half.Y),math.max(maxv.Z,p.Z+half.Z))
@@ -3678,9 +3995,100 @@ end
 
 lib.setpage(bsaltab, "Load & Manage", "Transform")
 lib.makelabel("",bsaltab)
+lib.rotationDegrees = 0
+lib.rotationCard = lib.makerotation(bsaltab, function(axis, deg)
+	if axis == "Y" then lib.rotationDegrees = deg
+	elseif axis == "X" then lib.rotationX = deg
+	else lib.rotationZ = deg end
+	lib.refreshRotation()
+end)
+if not lib.rotationCard then -- library without the rotation card: keep the old sliders
+	lib.makeslider("Rotation (Y axis)",bsaltab,0,360,0,function(value)
+		lib.rotationDegrees = math.clamp(math.floor((value/90)+0.5)*90,0,360)
+		if prttable and #prttable>0 then
+			lib.applyPositionOffsetToPreview()
+			createAxisGizmo()
+		end
+	end,90)
+	lib.makeslider("Rotation (X axis)",bsaltab,0,360,0,function(value)
+		lib.rotationX = math.clamp(math.floor((value/90)+0.5)*90,0,360)
+		lib.refreshRotation()
+	end,90)
+	lib.makeslider("Rotation (Z axis)",bsaltab,0,360,0,function(value)
+		lib.rotationZ = math.clamp(math.floor((value/90)+0.5)*90,0,360)
+		lib.refreshRotation()
+	end,90)
+end
 positionBoxes.X=lib.maketextboxlive("Position X",bsaltab,function(txt) setPositionAxis("X",txt) end)
 positionBoxes.Y=lib.maketextboxlive("Position Y",bsaltab,function(txt) setPositionAxis("Y",txt) end)
 positionBoxes.Z=lib.maketextboxlive("Position Z",bsaltab,function(txt) setPositionAxis("Z",txt) end)
+function lib.moveBuildToPlayer() -- puts the preview in front of you, its bottom level with your feet
+	if lib.positionLocked then notify("Transform", "Position is locked", "Warning") return end
+	if not prttable or #prttable == 0 then notify("Transform", "Load a build preview first", "Warning") return end
+	local char = localplr.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart")
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if not hrp then notify("Transform", "No character", "Warning") return end
+
+	-- world bounds of the preview as it is right now (rotation and offset included)
+	local mn = Vector3.new(math.huge, math.huge, math.huge)
+	local mx = Vector3.new(-math.huge, -math.huge, -math.huge)
+	for _, part in ipairs(prttable) do
+		if part and part.Parent then
+			local h = part.Size / 2
+			for _, sx in ipairs({-1, 1}) do for _, sy in ipairs({-1, 1}) do for _, sz in ipairs({-1, 1}) do
+				local c = part.CFrame:PointToWorldSpace(Vector3.new(h.X * sx, h.Y * sy, h.Z * sz))
+				mn = Vector3.new(math.min(mn.X, c.X), math.min(mn.Y, c.Y), math.min(mn.Z, c.Z))
+				mx = Vector3.new(math.max(mx.X, c.X), math.max(mx.Y, c.Y), math.max(mx.Z, c.Z))
+			end end end
+		end
+	end
+	if mn.X == math.huge then return end
+	local center, half = (mn + mx) / 2, (mx - mn) / 2
+
+	local feetY = hrp.Position.Y - ((hum and hum.RigType == Enum.HumanoidRigType.R15) and (hrp.Size.Y / 2 + hum.HipHeight) or 3)
+	local look = Vector3.new(hrp.CFrame.LookVector.X, 0, hrp.CFrame.LookVector.Z)
+	look = look.Magnitude > 0.01 and look.Unit or Vector3.new(0, 0, -1)
+	local right = Vector3.new(-look.Z, 0, look.X)
+	local margin = 3 -- gap between you and the build, and clearance kept around other players
+
+	local others = {}
+	for _, p in ipairs(game.Players:GetPlayers()) do
+		local r = p ~= localplr and p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+		if r then table.insert(others, r.Position) end
+	end
+	local function hitsPlayer(c, y) -- would a build centred at c (bottom at y) touch anyone?
+		local lo = Vector3.new(c.X - half.X - margin, y - margin, c.Z - half.Z - margin)
+		local hi = Vector3.new(c.X + half.X + margin, y + half.Y * 2 + margin, c.Z + half.Z + margin)
+		for _, pos in ipairs(others) do
+			if pos.X >= lo.X and pos.X <= hi.X and pos.Y >= lo.Y and pos.Y <= hi.Y and pos.Z >= lo.Z and pos.Z <= hi.Z then
+				return true
+			end
+		end
+		return false
+	end
+
+	local dirs = {look, right, -right, -look} -- front first, then the other sides
+	local target
+	for ring = 0, 2 do
+		for _, d in ipairs(dirs) do
+			local reach = math.abs(d.X) * half.X + math.abs(d.Z) * half.Z + margin + ring * 8
+			local c = Vector3.new(hrp.Position.X + d.X * reach, 0, hrp.Position.Z + d.Z * reach)
+			if not hitsPlayer(c, feetY) then target = c break end
+		end
+		if target then break end
+	end
+	if not target then notify("Transform", "No free spot: players are in the way", "Warning") return end
+
+	local delta = Vector3.new(target.X - center.X, feetY - mn.Y, target.Z - center.Z)
+	gizmoOffset = gizmoOffset + Vector3.new(math.round(delta.X), math.round(delta.Y), math.round(delta.Z))
+	lib.applyPositionOffsetToPreview()
+	createAxisGizmo()
+end
+lib.makebutton("Move build to your position",bsaltab,function()
+	local ok, err = pcall(lib.moveBuildToPlayer)
+	if not ok then notify("Transform", tostring(err), "Error") end
+end)
 lib.makebutton("Reset Position",bsaltab,function()
 	if lib.positionLocked then notify("Transform", "Position is locked", "Warning") return end
 	gizmoOffset=Vector3.new(0,0,0)
@@ -3761,19 +4169,13 @@ local chat = nil
 local s,e = pcall(function()
 	chat = nil
 end)
-function say(text,channel)
+function say(text,channel) -- every command goes through RBXGeneral with the ";" prefix
 	coroutine.wrap(function()
-		if not dumfix and channel and channel:lower() == "system" then
-			if string.sub(text,1,1) ~= ";" then
-				text = ";"..text
-			end
-			game:GetService("TextChatService").TextChannels.RBXSystem:SendAsync(text)
-		else
-			if string.sub(text,1,1) ~= ";" and dumfix then
-				text = ";"..text
-			end
-			game:GetService("TextChatService").TextChannels.RBXGeneral:SendAsync(text)
+		text = tostring(text)
+		if string.sub(text,1,1) ~= ";" then
+			text = ";"..text
 		end
+		game:GetService("TextChatService").TextChannels.RBXGeneral:SendAsync(text)
 	end)()
 end
 local gsavenames = "tcogearsavenames.txt"
@@ -3972,10 +4374,24 @@ lib.makebutton("Copy Custom Gear ID", geartab, function()
 	end
 end)
 
-lib.maketextbox("Delete Gear (enter in id)",geartab,function(txt)
-	deletegear(txt)
+lib.makebutton("Delete Selected Gear", geartab, function()
+	if not selectedCustomGear then notify("Custom Gears", "Select a gear first", "Warning") return end
+	local name = selectedCustomGear
+	local id = customGearIdByName[name]
+	if id == nil then notify("Custom Gears", "Gear not found", "Warning") return end
+	deletegear(id)
+	selectedCustomGear = nil
 	updatedCustomGearDropdown()
-end)
+	notify("Custom Gears", "Deleted: " .. tostring(name))
+end, {
+	Confirm = {
+		Title = "Delete Gear?",
+		Description = "Remove the gear picked in \"Select custom gear\" from your saved list?",
+		Yes = "Delete",
+		No = "Cancel",
+		Danger = true,
+	},
+})
 
 
 local s,e = pcall(function()
@@ -4018,28 +4434,28 @@ local dee2 = true
 local pickuptools = true
 local autodroptools = true
 local currhum = nil
-lib.setpage(tooltab, "Tool Management", "Automatic Tool Actions")
-lib.maketoggle("Don't equip enlighten when dropping tools (For auto drop)",tooltab,function(bool)
+lib.setpage(modtab, "Tool Management", "Automatic Tool Actions")
+lib.maketoggle("Don't equip enlighten when dropping tools (For auto drop)",modtab,function(bool)
 	dee2 = bool
 end,true)
-lib.maketoggle("Auto Drop Tools On Death",tooltab,function(bool)
+lib.maketoggle("Auto Drop Tools On Death",modtab,function(bool)
 	autodroptools = bool
 end,true)
-lib.maketoggle("Auto Pickup Dropped Tools",tooltab,function(bool)
+lib.maketoggle("Auto Pickup Dropped Tools",modtab,function(bool)
 	pickuptools = bool
 end,true)
-lib.maketoggle("Don't equip enlighten when dropping/equipping tools",tooltab,function(bool)
+lib.maketoggle("Don't equip enlighten when dropping/equipping tools",modtab,function(bool)
 	dee = bool
 end)
-lib.maketoggle("Spam Equip and Unequip all tools",tooltab,function(bool)
+lib.maketoggle("Spam Equip and Unequip all tools",modtab,function(bool)
 	if bool then
 		suaeq = true
 	else
 		suaeq = nil
 	end
 end)
-lib.setpage(tooltab, "Tool Management", "Manual Actions")
-lib.makebutton("Equip All Tools",tooltab,function()
+lib.setpage(modtab, "Tool Management", "Manual Actions")
+lib.makebutton("Equip All Tools",modtab,function()
 	for i,v in pairs(localplr.Backpack:GetChildren()) do
 		if v:IsA("Tool") then
 			if (dee and v.Name ~= "The Arkenstone") or not dee then
@@ -4048,7 +4464,7 @@ lib.makebutton("Equip All Tools",tooltab,function()
 		end
 	end
 end)
-lib.makebutton("Drop All Tools", tooltab, function()
+lib.makebutton("Drop All Tools", modtab, function()
     for i,v in pairs(localplr.Backpack:GetChildren()) do
         if v:IsA("Tool") then
             if (dee and v.Name ~= "The Arkenstone") or not dee then
@@ -4181,12 +4597,125 @@ lib.setpage(modtab, "Player & Chat", "Chat Tools")
 lib.maketoggle("SPY CHAT",modtab,function(bool)
 	spychat = bool
 end,true)
+lib.setpage(modtab, "Player & Chat", "Players")
+do -- scoped: POV engine + Players list (keeps locals out of the main chunk's 200-local limit)
+	local Players = game:GetService("Players")
+	lib.povName = nil
+	lib.povLists = {}
+	function lib.setPOV(name)
+		local cam = workspace.CurrentCamera
+		if not cam then return end
+		if name == localplr.Name then name = nil end
+		lib.povName = name
+		if not name then
+			local hum = localplr.Character and localplr.Character:FindFirstChildOfClass("Humanoid")
+			if hum then cam.CameraSubject = hum end
+			cam.CameraType = Enum.CameraType.Custom
+		else
+			lib.applyPOV()
+		end
+	end
+	function lib.applyPOV()
+		local cam = workspace.CurrentCamera
+		local plr = lib.povName and Players:FindFirstChild(lib.povName)
+		if not cam then return end
+		if not plr then -- the watched player left
+			lib.povSelect(nil)
+			return
+		end
+		local hum = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
+		if hum then
+			if cam.CameraSubject ~= hum then cam.CameraSubject = hum end
+			if cam.CameraType ~= Enum.CameraType.Custom then cam.CameraType = Enum.CameraType.Custom end
+		end
+	end
+	function lib.povSelect(key) -- click a row = POV, click it again = back to your character
+		if key == localplr.Name then key = nil end
+		for _, l in pairs(lib.povLists) do
+			if l and l.Select then pcall(l.Select, key) end -- keep both lists showing the same selection
+		end
+		lib.setPOV(key)
+	end
+	task.spawn(function()
+		while not scriptUnloading do
+			task.wait(0.2)
+			if lib.povName then pcall(lib.applyPOV) end
+		end
+		if lib.povName then pcall(lib.setPOV, nil) end
+	end)
+
+	local countLabel = lib.makelabel("Players " .. #Players:GetPlayers() .. " of " .. Players.MaxPlayers .. " max", modtab)
+	local plrList = lib.makeplayerlist("Click a player to POV, click again to exit", modtab, function(key)
+		lib.povSelect(key)
+	end, {EmptyText = "Nobody else is in the server"})
+	if plrList then
+		lib.povLists.players = plrList
+		task.spawn(function()
+			while plrList.IsAlive() and not scriptUnloading do
+				pcall(function()
+					local entries = {}
+					for _, p in ipairs(Players:GetPlayers()) do
+						if p ~= localplr then
+							table.insert(entries, {
+								Key = p.Name, Name = p.Name, UserId = p.UserId,
+								Display = p.DisplayName, Count = 0, Chip = "", InGame = true,
+							})
+						end
+					end
+					table.sort(entries, function(a, b) return a.Name:lower() < b.Name:lower() end)
+					plrList.SetEntries(entries)
+					lib.updatelabel("Players " .. #Players:GetPlayers() .. " of " .. Players.MaxPlayers .. " max", countLabel)
+				end)
+				task.wait(1)
+			end
+		end)
+	end
+end
 lib.setpage(modtab, "Player & Chat", "Arkenstone Holders")
-do -- scoped: keeps the list locals out of the main chunk's 200-local limit
-	local arkList = lib.makeplayerlist("Enlightened Players", modtab, nil, {EmptyText = "Nobody has The Arkenstone"})
+do -- scoped: Arkenstone holder list (POV on click) + optional highlight toggle
+	local arkList
+	lib.arkHighlights = {}
+	lib.arkHighlightOn = false
+	lib.arkHolders = {}
+	lib.refreshArkHL = function() -- outline every current holder while the toggle is on
+		for plr, hl in pairs(lib.arkHighlights) do
+			local keep = lib.arkHighlightOn and lib.arkHolders[plr] and plr.Parent and plr.Character and plr.Character.Parent
+			if not keep then
+				pcall(function() hl:Destroy() end)
+				lib.arkHighlights[plr] = nil
+			end
+		end
+		if not lib.arkHighlightOn then return end
+		for plr in pairs(lib.arkHolders) do
+			local char = plr.Parent and plr.Character
+			if char and char.Parent then
+				local hl = lib.arkHighlights[plr]
+				if not hl then
+					hl = Instance.new("Highlight")
+					hl.Name = "ArkenHolderHighlight"
+					hl.FillColor = Color3.fromRGB(4,175,236)
+					hl.FillTransparency = 0.7
+					hl.OutlineColor = Color3.fromRGB(4,175,236)
+					hl.OutlineTransparency = 0
+					hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+					hl.Parent = game.CoreGui
+					lib.arkHighlights[plr] = hl
+				end
+				if hl.Adornee ~= char then hl.Adornee = char end
+			end
+		end
+	end
+	arkList = lib.makeplayerlist("Enlightened Players (click to POV)", modtab, function(key)
+		lib.povSelect(key)
+	end, {EmptyText = "Nobody has The Arkenstone"})
+	lib.maketoggle("Highlight holders", modtab, function(b)
+		lib.arkHighlightOn = b == true
+		pcall(lib.refreshArkHL)
+	end, false, "Outlines everyone who holds The Arkenstone, visible through walls.")
 	if arkList then
+		lib.povLists.ark = arkList
 		local function scanArkenstone()
-			local entries = {}
+			local entries, holders = {}, {}
 			for _, p in ipairs(game.Players:GetPlayers()) do
 				local c = p.Character
 				local bp = p:FindFirstChildOfClass("Backpack")
@@ -4194,6 +4723,7 @@ do -- scoped: keeps the list locals out of the main chunk's 200-local limit
 					or (bp and bp:FindFirstChild("The Arkenstone"))
 					or p:GetAttribute("Arken") == true
 				if has then
+					holders[p] = true
 					table.insert(entries, {
 						Key = p.Name, Name = p.Name, UserId = p.UserId,
 						Display = p.DisplayName, Count = 0, Chip = "", InGame = true,
@@ -4201,13 +4731,18 @@ do -- scoped: keeps the list locals out of the main chunk's 200-local limit
 				end
 			end
 			table.sort(entries, function(a, b) return a.Name:lower() < b.Name:lower() end)
+			lib.arkHolders = holders
 			arkList.SetEntries(entries)
 		end
 		task.spawn(function()
 			while arkList.IsAlive() and not scriptUnloading do
 				pcall(scanArkenstone)
+				pcall(lib.refreshArkHL)
 				task.wait(1)
 			end
+			lib.arkHighlightOn = false
+			lib.arkHolders = {}
+			pcall(lib.refreshArkHL)
 		end)
 	end
 end
@@ -4331,7 +4866,6 @@ do -- scoped: keeps the inspector locals out of the main chunk's 200-local limit
 		local mousepart = mouse.Target
 		if not mousepart then
 			setBlock("No block selected", "Click a block to inspect it")
-			sbox.Adornee = nil
 			clearBoombox()
 			return
 		end
@@ -4354,28 +4888,8 @@ do -- scoped: keeps the inspector locals out of the main chunk's 200-local limit
 			if mousepart.Parent.Parent == workspace then who = plrtxt end
 			local sz = mousepart.Size
 			setBlock(who, mousepart.Name.."  •  "..string.format("%.1f × %.1f × %.1f", sz.X, sz.Y, sz.Z))
-			if oss then
-				lib.updatelabel("Block is from: "..plrtxt,blocktxt2)
-				ssbox.Adornee = mousepart
-				ssbox.Face = side
-				sblock = mousepart
-			end
-			if ss then
-				local ctm = nil
-				for i,v in pairs(normalids) do
-					local pos = mousepart.Position + (v[1]*mousepart.Size[v[2]]/2)
-					if ctm == nil then
-						ctm = {i,(mouse.Hit.Position - pos).Magnitude}
-					elseif (mouse.Hit.Position - pos).Magnitude < ctm[2] then
-						ctm = {i,(mouse.Hit.Position - pos).Magnitude}
-					end
-				end
-				side = ctm[1]
-				ssbox.Face = side
-			end
 		else
 			setBlock("No block selected", "Click a block to inspect it")
-			sbox.Adornee = nil
 		end
 		local model = mousepart.Parent
 		if model and boomboxnames[model.Name] == true then
@@ -4463,13 +4977,13 @@ function plradded(plr)
 				infotxt.Position = UDim2.new(0,0,0.5,0)
 				infotxt.TextStrokeTransparency = 0
 				if beowner then
-					txt.Text = "Better Extra Owner"
+					txt.Text = "Poopo Hub Owner"
 					infotxt.Text = ""
 					txt.TextColor3 = Color3.fromHSV(0, 0.45, 1)
 					txt.Font = Enum.Font.IndieFlower
 					table.insert(rainbowLabels, {lbl = txt, sub = infotxt})
 				elseif owner then
-					txt.Text = "Script Owner (Extra Stuff)"
+					txt.Text = "Script Owner (Poopo Hub)"
 					infotxt.Text = "Don't ask me for the 'tag' script, you only see this when you execute the script."
 					txt.TextColor3 = Color3.fromRGB(200,90,0)
 				elseif enderhubperson then
@@ -4514,6 +5028,7 @@ lib.ondestroyedfunc = function()
 	pcall(function() onrender:Disconnect() end)
 	pcall(function() inputbegan:Disconnect() end)
 	pcall(function() highlight:Destroy() end)
+	pcall(function() for _, h in pairs(lib.arkHighlights or {}) do h:Destroy() end end)
 	pcall(function() onplr:Disconnect() end)
 	daura = false
 	dauras = false
@@ -4554,11 +5069,13 @@ lib.ondestroyedfunc = function()
 		end
 	end
 	pcall(function()
-		ssbox.Adornee = nil
-		ssbox:Destroy()
+		lib.sel.face.Adornee = nil
+		lib.sel.face:Destroy()
 	end)
-	spmsb = false
-	ss = false
+	pcall(function() lib.sel.input:Disconnect() end)
+	pcall(function() if lib.sel.watch then lib.sel.watch:Disconnect() end end)
+	lib.sel.spam = false
+	lib.sel.byClick = false
 	tp = false
 	pcall(function() onbrick:Disconnect() end)
 	pcall(function() buildhighlight:Destroy() end)
@@ -4570,7 +5087,8 @@ local anti = {
     jail=false, invis=false,
     blind=false,
     inventory=false, void=true, antideath=true,
-    noclip=false, blur=false, colorless=false, fog=false
+    noclip=false, blur=false, colorless=false, fog=false,
+    r15=false, teleport=false, teleportIgnoreUntil=0
 }
 local antiLightingSaved = setmetatable({}, {__mode = "k"})
 local antiCollisionSaved = setmetatable({}, {__mode = "k"})
@@ -4613,8 +5131,20 @@ local function applyAntiNoclip(character)
 end
 
 lib.makelabel("",modtab)
+lib.setpage(modtab, "Protection", "Screen & Camera Protections")
+lib.maketoggle("Anti Vamp", modtab, function(b) anti.inventory = b; print("inventory:",b) end, false)
+lib.maketoggle("Anti Blind", modtab, function(b) anti.blind = b; print("blind:",b) end, false)
+lib.maketoggle("Anti Blur", modtab, function(b) anti.blur = b end, false)
+lib.maketoggle("Anti Colorless", modtab, function(b) anti.colorless = b end, false)
+lib.maketoggle("Anti Fog", modtab, function(b) anti.fog = b end, false,
+    "Sets Fog 0")
+
 lib.setpage(modtab, "Protection", "Character Protections")
 lib.maketoggle("Anti Death", modtab, function(b) anti.antideath = b end, true)
+lib.avatarDropdown = lib.makedropdown("Anti-Death Avatar (R6 / R15)", modtab, {"R6", "R15"}, function(v)
+    anti.r15 = (v == "R15") -- which recovery command Anti Death sends: "r6 me" or "r15 me"
+end)
+if lib.avatarDropdown and lib.avatarDropdown.Set then pcall(lib.avatarDropdown.Set, "R6") end
 lib.maketoggle("Anti Void", modtab, function(b) anti.void = b end, true)
 lib.maketoggle("Anti Glitch", modtab, function(b) anti.glitch = b; print("glitch:",b) end, false)
 lib.maketoggle("Anti Freeze", modtab, function(b) anti.freeze = b; print("freeze:",b) end, false)
@@ -4705,8 +5235,60 @@ end
 lib.maketoggle("Fly", modtab, function(b)
     pcall(function() localplr:SetAttribute("Flying", b) end)
 end, localplr:GetAttribute("Flying") == true)
-lib.makebutton("Tospawn", modtab, function()
+
+do -- scoped Anti-Teleport: catches position jumps BEFORE the physics step
+    -- Heartbeat runs after physics, so the CFrame it records is where physics legitimately left you.
+    -- Stepped runs before physics: if the root already moved since the last Heartbeat, something wrote
+    -- to it (a server/other script teleport). That is rolled back before physics can build on the jump.
+    local RunService = game:GetService("RunService")
+    local THRESHOLD = 30 -- studs; a bigger jump than this in one frame counts as a teleport
+    local steppedConn, heartbeatConn, trackedChar, safeCF
+    local function stopTracking()
+        if steppedConn then steppedConn:Disconnect(); steppedConn = nil end
+        if heartbeatConn then heartbeatConn:Disconnect(); heartbeatConn = nil end
+        trackedChar, safeCF = nil, nil
+    end
+    local function ignoring() -- teleports caused by this script (build, ToSpawn, Anti Void, Anti Glitch)
+        return os.clock() < math.max(anti.teleportIgnoreUntil or 0, lib.tpIgnoreUntil or 0)
+    end
+    lib.maketoggle("Anti Teleport", modtab, function(enabled)
+        anti.teleport = enabled == true
+        stopTracking()
+        if not anti.teleport then return end
+        heartbeatConn = RunService.Heartbeat:Connect(function()
+            if not anti.teleport or scriptUnloading then stopTracking(); return end
+            local character = localplr.Character
+            local root = character and character:FindFirstChild("HumanoidRootPart")
+            if not root then trackedChar, safeCF = nil, nil; return end
+            trackedChar = character
+            safeCF = root.CFrame
+        end)
+        steppedConn = RunService.Stepped:Connect(function()
+            if not anti.teleport or scriptUnloading then stopTracking(); return end
+            local character = localplr.Character
+            local root = character and character:FindFirstChild("HumanoidRootPart")
+            if not root or character ~= trackedChar or not safeCF then return end -- new character (respawn): re-baseline
+            local current = root.CFrame
+            if ignoring() then safeCF = current; return end
+            if (current.Position - safeCF.Position).Magnitude > THRESHOLD then
+                pcall(function()
+                    root.CFrame = safeCF
+                    root.AssemblyLinearVelocity = Vector3.zero
+                    root.AssemblyAngularVelocity = Vector3.zero
+                end)
+            end
+        end)
+        table.insert(conn, heartbeatConn)
+        table.insert(conn, steppedConn)
+    end, false, "Rolls back sudden position jumps before physics runs. Ignores teleports made by this script (build, ToSpawn, Anti Void, Anti Glitch). Cannot stop respawns.")
+end
+
+
+lib.setpage(modtab, "Protection", "Utilities")
+lib.makebutton("ToSpawn", modtab, function()
     pcall(function()
+        anti.teleportIgnoreUntil = os.clock() + 1.5
+        lib.markTP(1.5)
         local c = localplr.Character
         local hrp = c and c:FindFirstChild("HumanoidRootPart")
         if hrp then
@@ -4716,14 +5298,6 @@ lib.makebutton("Tospawn", modtab, function()
         end
     end)
 end)
-lib.setpage(modtab, "Protection", "Screen & Camera Protections")
-lib.maketoggle("Anti Vamp", modtab, function(b) anti.inventory = b; print("inventory:",b) end, false)
-lib.maketoggle("Anti Blind", modtab, function(b) anti.blind = b; print("blind:",b) end, false)
-lib.maketoggle("Anti Blur", modtab, function(b) anti.blur = b end, false)
-lib.maketoggle("Anti Colorless", modtab, function(b) anti.colorless = b end, false)
-lib.maketoggle("Anti Fog", modtab, function(b) anti.fog = b end, false,
-    "Sets Fog 0")
-
 
 task.spawn(function()
     
@@ -4743,6 +5317,8 @@ task.spawn(function()
             if hrp.Position.Y < void_dh + 5 then
                 hrp.AssemblyLinearVelocity = Vector3.new(0,0,0)
                 hrp.AssemblyAngularVelocity = Vector3.new(0,0,0)
+                anti.teleportIgnoreUntil = os.clock() + 1.5
+                lib.markTP(1.5)
                 c:PivotTo(CFrame.new(0,200,0))
             end
         end)
@@ -4765,7 +5341,7 @@ local function hookAntideath(character)
         task.wait(0.05)
     end
     
-    say("r6 me", "system")
+    say(anti.r15 and "r15 me" or "r6 me", "system")
 end)
     end)
 end
@@ -4816,6 +5392,8 @@ localplr.CharacterAdded:Connect(hookAntideath)
             end
             if anti.glitch and hrp and math.abs(hrp.Position.Y) > 500000 then
                 hrp.AssemblyLinearVelocity = Vector3.new(0,0,0)
+                anti.teleportIgnoreUntil = os.clock() + 1.5
+                lib.markTP(1.5)
                 char:PivotTo(CFrame.new(0,200,0))
             end
             if anti.jail and char:FindFirstChild("Jail") then
@@ -4871,7 +5449,7 @@ end
                 end)
                 pcall(function()
                     local cam = workspace.CurrentCamera
-                    if cam then
+                    if cam and not lib.povName then -- skip while spectating a player (POV)
                         if cam.CameraType ~= Enum.CameraType.Custom then
                             cam.CameraType = Enum.CameraType.Custom
                         end
